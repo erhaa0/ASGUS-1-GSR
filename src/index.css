@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg-primary: #080808;
+  --bg-card: rgba(12, 12, 12, 0.85);
+  --border-color: #2A2A2A;
+  --grid-line: #1E1E1E;
+  --grid-line-bright: #2A2A2A;
+  --accent-amber: #F59E0B;
+  --accent-amber-hover: #D97706;
+  --text-primary: #FFFFFF;
+  --text-muted: #888888;
+  --input-bg: #0F0F0F;
+  --input-border: #2A2A2A;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#root,
+.app-main {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: 'Space Mono', monospace;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ─── Leaflet Map Pointer Event & Z-Index Fixes ─── */
+.leaflet-container {
+  z-index: 0 !important;
+  background: #080808 !important;
+}
+
+.leaflet-tile-pane {
+  opacity: 1;
+}
+
+.leaflet-tile {
+  background: #080808;
+}
+
+.leaflet-pane {
+  z-index: 0 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.map-wrapper {
+  pointer-events: none;
+}
+
+.map-wrapper .leaflet-container {
+  pointer-events: all;
+}

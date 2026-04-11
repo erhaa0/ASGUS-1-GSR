@@ -1,0 +1,818 @@
+/* ===== ASGUS-1 GSR LANDING PAGE ===== */
+
+/* Override global overflow:hidden when landing page is active */
+body.landing-active {
+    overflow: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Scanline overlay */
+body.landing-active::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.03) 2px,
+            rgba(0, 0, 0, 0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* ─── Landing Container ─── */
+.landing-page {
+    background: #080808;
+    color: #F5F5F5;
+    overflow-x: hidden;
+    font-family: 'Rajdhani', sans-serif;
+}
+
+/* ─── Fixed Topbar ─── */
+.lp-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 52px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.25);
+    box-shadow: 0 1px 0 rgba(59, 130, 246, 0.1), 0 4px 20px rgba(0, 0, 0, 0.4);
+    transition: background 0.3s ease;
+}
+
+.lp-topbar.scrolled {
+    background: rgba(8, 8, 12, 0.92);
+}
+
+.lp-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lp-topbar-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #F59E0B;
+}
+
+.lp-topbar-divider {
+    width: 1px;
+    height: 20px;
+    background: #1E1E1E;
+}
+
+.lp-topbar-system {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #4B5563;
+    letter-spacing: 0.15em;
+}
+
+.lp-topbar-center {
+    display: flex;
+    align-items: center;
+}
+
+.lp-classified-pill {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #EF4444;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    padding: 4px 12px;
+    border-radius: 2px;
+}
+
+.lp-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.lp-version {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #4B5563;
+}
+
+.lp-access-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #F59E0B;
+    background: transparent;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+}
+
+.lp-access-btn:hover {
+    background: #F59E0B;
+    color: #080808;
+}
+
+/* ─── Hero Section ─── */
+.lp-hero {
+    position: relative;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #080808;
+}
+
+.lp-hero-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.lp-hero-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.lp-gov-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #4B5563;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+}
+
+
+.lp-hero-title-line {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 80px;
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: heroFadeUp 0.8s ease-out forwards;
+}
+
+.lp-hero-title-line.white {
+    color: #F5F5F5;
+    animation-delay: 0.2s;
+}
+
+.lp-hero-title-line.amber {
+    color: #F59E0B;
+    animation-delay: 0.4s;
+}
+
+
+.lp-hero-subtitle {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 300;
+    font-size: 18px;
+    color: #9CA3AF;
+    letter-spacing: 0.35em;
+    opacity: 0;
+    animation: heroFadeUp 0.6s ease-out 0.6s forwards;
+}
+
+.lp-hero-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #4B5563;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+    opacity: 0;
+    animation: heroFadeUp 0.6s ease-out 0.8s forwards;
+}
+
+@keyframes heroFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.lp-hero-buttons {
+    display: flex;
+    gap: 16px;
+    margin-top: 48px;
+    opacity: 0;
+    animation: heroFadeUp 0.6s ease-out 1s forwards;
+}
+
+.lp-btn-primary {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    background: #F59E0B;
+    color: #080808;
+    border: none;
+    padding: 14px 32px;
+    clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+}
+
+.lp-btn-primary:hover {
+    background: #D97706;
+    transform: translateY(-2px);
+}
+
+.lp-btn-secondary {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    background: transparent;
+    color: #F5F5F5;
+    border: 1px solid #2A2A2A;
+    padding: 14px 32px;
+    clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+}
+
+.lp-btn-secondary:hover {
+    border-color: #F59E0B;
+    color: #F59E0B;
+}
+
+/* Coordinate strip */
+.lp-coord-strip {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    padding: 12px 40px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+}
+
+.lp-coord-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #22C55E;
+}
+
+.lp-coord-live .pulse-dot {
+    width: 6px;
+    height: 6px;
+    background: #22C55E;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #22C55E;
+    animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.lp-coord-center {
+    color: #4B5563;
+}
+
+.lp-coord-right {
+    color: #4B5563;
+}
+
+/* Scroll indicator */
+
+/* ─── Section Label (reused) ─── */
+.lp-section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #F59E0B;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+}
+
+.lp-section-line {
+    width: 60px;
+    height: 1px;
+    background: #F59E0B;
+    margin-bottom: 40px;
+}
+
+/* ─── Section 2 — Capabilities ─── */
+.lp-capabilities {
+    background: #080808;
+    padding: 120px 80px;
+}
+
+.lp-headline {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 52px;
+    line-height: 1.1;
+}
+
+.lp-headline .white {
+    color: #F5F5F5;
+}
+
+.lp-headline .amber {
+    color: #F59E0B;
+}
+
+.lp-cap-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-top: 64px;
+}
+
+.lp-cap-card {
+    background: #0D0D0D;
+    padding: 32px;
+    border-top-width: 2px;
+    border-top-style: solid;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+}
+
+.lp-cap-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+}
+
+.lp-cap-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #F5F5F5;
+    margin-bottom: 16px;
+}
+
+.lp-cap-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    color: #9CA3AF;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.lp-cap-chip {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+}
+
+/* ─── Section 3 — Coverage Map ─── */
+.lp-coverage {
+    position: relative;
+    background: #080808;
+    padding: 120px 80px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    min-height: 600px;
+}
+
+.lp-coverage-bg {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 60%;
+    height: 100%;
+    z-index: 0;
+}
+
+.lp-coverage-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 60%;
+    height: 100%;
+    z-index: 1;
+    background: linear-gradient(to right, #080808 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.lp-coverage-left {
+    flex: 1;
+    position: relative;
+    z-index: 2;
+}
+
+.lp-coverage-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 16px;
+    color: #9CA3AF;
+    line-height: 1.7;
+    margin: 24px 0 32px;
+    max-width: 500px;
+}
+
+.lp-stat-row {
+    display: flex;
+    gap: 48px;
+    margin-bottom: 32px;
+}
+
+.lp-stat-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 28px;
+    color: #F59E0B;
+    font-weight: 700;
+}
+
+.lp-stat-label-sm {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    color: #6B7280;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+}
+
+.lp-map-region {
+    fill: rgba(245, 158, 11, 0.06);
+    stroke: rgba(245, 158, 11, 0.25);
+    stroke-width: 1.5;
+    stroke-dasharray: 800;
+    stroke-dashoffset: 800;
+    transition: stroke-dashoffset 1.5s ease-out;
+}
+
+.lp-map-region.visible {
+    stroke-dashoffset: 0;
+}
+
+.lp-map-dot {
+    fill: #F59E0B;
+    opacity: 0.8;
+}
+
+.lp-map-dot-pulse {
+    fill: #F59E0B;
+    opacity: 0;
+    animation: mapPulse 2s infinite;
+}
+
+@keyframes mapPulse {
+    0% {
+        opacity: 0.6;
+        r: 3;
+    }
+
+    100% {
+        opacity: 0;
+        r: 10;
+    }
+}
+
+/* ─── Section 4 — Metrics ─── */
+.lp-metrics {
+    background: #080808;
+    padding: 100px 80px;
+    background-image:
+        linear-gradient(rgba(245, 158, 11, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 158, 11, 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+}
+
+.lp-metrics-grid {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 48px;
+}
+
+.lp-metric-block {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.lp-metric-block+.lp-metric-block::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10%;
+    height: 80%;
+    width: 1px;
+    background: #1E1E1E;
+}
+
+.lp-metric-number {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 64px;
+    color: #F59E0B;
+    display: inline;
+}
+
+.lp-metric-suffix {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    color: #F5F5F5;
+    margin-left: 4px;
+}
+
+.lp-metric-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    color: #6B7280;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+}
+
+/* ─── Section 5 — Roles ─── */
+.lp-roles {
+    background: #0A0A0A;
+    padding: 120px 80px;
+}
+
+.lp-roles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 48px;
+}
+
+.lp-role-card {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    padding: 32px;
+    position: relative;
+    border-top-width: 2px;
+    border-top-style: solid;
+}
+
+.lp-role-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 2px;
+}
+
+.lp-role-icon {
+    display: grid;
+    grid-template-columns: repeat(2, 12px);
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+.lp-role-icon-sq {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.lp-role-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #F5F5F5;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+}
+
+.lp-role-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    color: #9CA3AF;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.lp-role-features {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.lp-role-feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: #9CA3AF;
+}
+
+.lp-role-feature .check {
+    font-size: 12px;
+}
+
+.lp-role-clearance {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding-top: 16px;
+    border-top: 1px solid #1E1E1E;
+}
+
+/* ─── Section 6 — Tech Stack ─── */
+.lp-tech {
+    background: #080808;
+    padding: 100px 80px;
+}
+
+.lp-tech-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 48px;
+}
+
+.lp-tech-card {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    padding: 24px;
+}
+
+.lp-tech-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #F5F5F5;
+    margin-bottom: 8px;
+}
+
+.lp-tech-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: #6B7280;
+    margin-bottom: 12px;
+}
+
+.lp-tech-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #22C55E;
+}
+
+.lp-tech-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22C55E;
+}
+
+/* ─── Footer ─── */
+.lp-footer {
+    background: #050505;
+    padding: 48px 80px;
+    border-top: 1px solid #0F0F0F;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.lp-footer-left .lp-footer-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: #F59E0B;
+}
+
+.lp-footer-left .lp-footer-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #4B5563;
+    margin-top: 6px;
+    letter-spacing: 0.1em;
+}
+
+.lp-footer-center {
+    text-align: center;
+}
+
+.lp-footer-center .lp-footer-gov {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #2A2A2A;
+    letter-spacing: 0.05em;
+}
+
+.lp-footer-center .lp-footer-class {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    color: rgba(239, 68, 68, 0.4);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+}
+
+.lp-footer-right {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #4B5563;
+    text-align: right;
+}
+
+/* ─── Scroll Animations ─── */
+.animate-on-scroll {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.animate-on-scroll.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.stagger-1 {
+    transition-delay: 0.1s;
+}
+
+.stagger-2 {
+    transition-delay: 0.2s;
+}
+
+.stagger-3 {
+    transition-delay: 0.3s;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1024px) {
+    .lp-hero-title-line {
+        font-size: 52px;
+    }
+
+    .lp-cap-grid,
+    .lp-roles-grid,
+    .lp-tech-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .lp-coverage {
+        flex-direction: column;
+    }
+
+    .lp-metrics-grid {
+        flex-wrap: wrap;
+        gap: 32px;
+    }
+
+    .lp-metric-block+.lp-metric-block::before {
+        display: none;
+    }
+
+    .lp-capabilities,
+    .lp-coverage,
+    .lp-roles,
+    .lp-tech,
+    .lp-metrics {
+        padding: 80px 32px;
+    }
+
+    .lp-footer {
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .lp-headline {
+        font-size: 36px;
+    }
+}
