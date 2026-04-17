@@ -1,0 +1,71 @@
+<svg width="400" height="340" viewBox="0 0 400 340" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#080808" />
+  
+  <!-- VERSION 1 — Full lockup -->
+  <!-- /* Version 1 */ -->
+  <g transform="translate(20, 20)">
+    <!-- Hexagon Lockup -->
+    <g>
+      <!-- Hexagon: flat-top orientation, 56x48px, stroke only #F59E0B 2px -->
+      <path d="M14 4 L42 4 L56 28 L42 52 L14 52 L0 28 Z" fill="none" stroke="#F59E0B" stroke-width="2" />
+      
+      <!-- Crosshair: horizontal and vertical across full inner width/height, 1.5px -->
+      <line x1="0" y1="28" x2="56" y2="28" stroke="#F59E0B" stroke-width="1.5" />
+      <line x1="28" y1="4" x2="28" y2="52" stroke="#F59E0B" stroke-width="1.5" />
+      
+      <!-- 4 small corner tick marks (targeting reticle brackets) -->
+      <!-- Top Left -->
+      <path d="M12 14 L6 14 L6 20" fill="none" stroke="#F59E0B" stroke-width="1.5" />
+      <!-- Top Right -->
+      <path d="M44 14 L50 14 L50 20" fill="none" stroke="#F59E0B" stroke-width="1.5" />
+      <!-- Bottom Left -->
+      <path d="M12 42 L6 42 L6 36" fill="none" stroke="#F59E0B" stroke-width="1.5" />
+      <!-- Bottom Right -->
+      <path d="M44 42 L50 42 L50 36" fill="none" stroke="#F59E0B" stroke-width="1.5" />
+      
+      <!-- Center dot: 3px radius filled #F59E0B -->
+      <circle cx="28" cy="28" r="3" fill="#F59E0B" />
+      
+      <!-- Two thin concentric rings: 8px and 14px radius, rgba(245,158,11,0.4), 1px -->
+      <circle cx="28" cy="28" r="8" fill="none" stroke="rgba(245,158,11,0.4)" stroke-width="1" />
+      <circle cx="28" cy="28" r="14" fill="none" stroke="rgba(245,158,11,0.4)" stroke-width="1" />
+    </g>
+
+    <!-- Text content to the right -->
+    <g transform="translate(68, 8)">
+      <text x="0" y="20" font-family="Orbitron" font-weight="bold" font-size="22" fill="#F5F5F5" letter-spacing="0.08em">ASGUS-1</text>
+      <text x="0" y="34" font-family="Space Mono" font-size="9" fill="#F59E0B" letter-spacing="0.15em">GROUND SURVEILLANCE RADAR</text>
+    </g>
+  </g>
+
+  <!-- VERSION 2 — Icon only -->
+  <!-- /* Version 2 */ -->
+  <g transform="translate(20, 116)">
+    <!-- 40x40 icon centered on transparent (artboard bg is #080808) -->
+    <g transform="translate(0, 0)">
+      <path d="M10 3 L30 3 L40 20 L30 37 L10 37 L0 20 Z" fill="none" stroke="#F59E0B" stroke-width="2" />
+      <line x1="0" y1="20" x2="40" y2="20" stroke="#F59E0B" stroke-width="1.5" />
+      <line x1="20" y1="3" x2="20" y2="37" stroke="#F59E0B" stroke-width="1.5" />
+      <circle cx="20" cy="20" r="3" fill="#F59E0B" />
+      <circle cx="20" cy="20" r="7" fill="none" stroke="rgba(245,158,11,0.4)" stroke-width="1" />
+      <circle cx="20" cy="20" r="13" fill="none" stroke="rgba(245,158,11,0.4)" stroke-width="1" />
+    </g>
+  </g>
+
+  <!-- VERSION 3 — Compact topbar version -->
+  <!-- /* Version 3 */ -->
+  <g transform="translate(20, 212)">
+    <!-- 24x24 icon -->
+    <g transform="translate(0, 4)">
+      <path d="M6 2 L18 2 L24 12 L18 22 L6 22 L0 12 Z" fill="none" stroke="#F59E0B" stroke-width="1.5" />
+      <line x1="0" y1="12" x2="24" y2="12" stroke="#F59E0B" stroke-width="1" />
+      <line x1="12" y1="2" x2="12" y2="22" stroke="#F59E0B" stroke-width="1" />
+      <circle cx="12" cy="12" r="2" fill="#F59E0B" />
+    </g>
+    <!-- Stacked Text to the right -->
+    <g transform="translate(32, 2)">
+      <text x="0" y="14" font-family="Orbitron" font-weight="bold" font-size="16" fill="white">ASGUS-1</text>
+      <text x="0" y="27" font-family="Space Mono" font-size="11" fill="#F59E0B">GSR</text>
+    </g>
+  </g>
+</svg>

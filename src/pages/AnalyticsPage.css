@@ -1,0 +1,26 @@
+/* ─── Analytics Page Styles ─────────────────────────────────────────── */
+
+/* Date range pill buttons */
+.an-range-pill {
+    background: #0D0D0D;
+    border: 1px solid #2A2A2A;
+    color: #666;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.an-range-pill:hover {
+    border-color: #F59E0B;
+    color: #F59E0B;
+}
+
+.an-range-pill.active {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: #F59E0B;
+    color: #F59E0B;
+    font-weight: 700;
+}
