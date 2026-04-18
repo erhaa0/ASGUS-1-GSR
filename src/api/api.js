@@ -63,16 +63,21 @@ export const bulkUpdateDetections = (eventIds, status) =>
         body:   JSON.stringify({ event_ids: eventIds, status }),
     });
 
-export const triggerDetection = (zoneId) =>
-    apiFetch('/api/detections/trigger', {
+export const triggerDetection = async (zoneId) => {
+    const observations = await apiFetch(`/api/observations?zone_id=${zoneId}`);
+    const sightings = (observations || [])
+        .filter(o => o.latitude != null && o.longitude != null)
+        .map(o => ({ lat: o.latitude, lon: o.longitude }));
+    return apiFetch('/api/detections/trigger', {
         method: 'POST',
         body:   JSON.stringify({
             zone_id:     zoneId,
-            sightings:   [],
+            sightings,
             eps:         0.5,
             min_samples: 2
         }),
     });
+};
 
 export const submitObservation = (data) =>
     apiFetch('/api/observations', {

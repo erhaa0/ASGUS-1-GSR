@@ -104,3 +104,26 @@ class WeatherSnapshot(Base):
     rainfall_7day  = Column(Float, nullable=False)
     source         = Column(String, default="live")
     fetched_at     = Column(DateTime, default=datetime.utcnow)
+
+# ── 8. Health Snapshots ───────────────────────────────
+class HealthSnapshot(Base):
+    __tablename__ = "health_snapshots"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp    = Column(DateTime, default=datetime.utcnow)
+    api_ms       = Column(Integer, default=0)
+    db_ms        = Column(Integer, default=0)
+    ai_ms        = Column(Integer, default=0)
+    azure_ms     = Column(Integer, default=0)
+    postgis_ms   = Column(Integer, default=0)
+
+# ── 9. Health Incidents ───────────────────────────────
+class HealthIncident(Base):
+    __tablename__ = "health_incidents"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp   = Column(DateTime, default=datetime.utcnow)
+    service     = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    severity    = Column(String, default="Medium")
+    status      = Column(String, default="Investigating")

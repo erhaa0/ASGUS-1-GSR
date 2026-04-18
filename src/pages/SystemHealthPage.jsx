@@ -59,16 +59,16 @@ export default function SystemHealthPage() {
                     const mapped = healthData.history.map(snap => {
                         const label = snap.timestamp
                             ? DAY_LABELS[new Date(snap.timestamp).getDay()]
-                            : '--';
+                            : (snap.day || '--');
                         const svcMap = {};
                         (snap.services || []).forEach(s => { svcMap[s.name] = s.response_ms || 0; });
                         return {
                             day:     label,
-                            api:     svcMap['API Server']        || 0,
-                            db:      svcMap['SQLite DB']         || 0,
-                            ai:      svcMap['AI Microservice']   || 0,
-                            azure:   svcMap['Azure App Service'] || 0,
-                            postgis: svcMap['PostGIS Extension'] || 0,
+                            api:     svcMap['API Server']        || snap.api     || 0,
+                            db:      svcMap['SQLite DB']         || snap.db      || 0,
+                            ai:      svcMap['AI Microservice']   || snap.ai      || 0,
+                            azure:   svcMap['Azure App Service'] || snap.azure   || 0,
+                            postgis: svcMap['PostGIS Extension'] || snap.postgis || 0,
                         };
                     });
                     setChartData(mapped);

@@ -4,10 +4,24 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from database import engine, Base
+from database import engine, Base, SessionLocal
+from models.db_models import User, HealthSnapshot, HealthIncident
+from seed import seed
 from routes import auth, zones, detections, observations, reports, users, logs, analytics, health, risk_params
 
 Base.metadata.create_all(bind=engine)
+
+def bootstrap_seed_data():
+    db = SessionLocal()
+    should_seed = False
+    try:
+        should_seed = db.query(User).count() == 0
+    finally:
+        db.close()
+    if should_seed:
+        seed()
+
+bootstrap_seed_data()
 
 # ── Migrate existing databases: add new columns if missing ────────────────────
 from sqlalchemy import text
