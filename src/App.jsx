@@ -19,20 +19,22 @@ export const UserContext = createContext(null);
 export function UserProvider({ children }) {
     const [user, setUser] = useState(() => {
         const saved = localStorage.getItem('asgus1_user');
-        return saved ? JSON.parse(saved) : {
-            role: 'analyst',
-            name: 'Ahmed Hassan',
-            badge: 'AN-1042'
-        };
+        return saved ? JSON.parse(saved) : null;
     });
 
     const updateUser = (userData) => {
-        localStorage.setItem('asgus1_user', JSON.stringify(userData));
+        localStorage.setItem('asgus1_user', 
+            JSON.stringify(userData));
         setUser(userData);
     };
 
+    const logout = () => {
+        localStorage.removeItem('asgus1_user');
+        setUser(null);
+    };
+
     return (
-        <UserContext.Provider value={{ user, updateUser }}>
+        <UserContext.Provider value={{ user, updateUser, logout }}>
             {children}
         </UserContext.Provider>
     );
@@ -42,9 +44,17 @@ export const useUser = () => useContext(UserContext);
 
 function ProtectedRoute({ allowedRoles, children }) {
     const { user } = useUser();
+
+    // Not logged in at all
+    if (!user || !user.token) {
+        return <Navigate to="/login" replace />;
+    }
+
+    // Wrong role
     if (!allowedRoles.includes(user.role)) {
         return <Navigate to="/login" replace />;
     }
+
     return children;
 }
 

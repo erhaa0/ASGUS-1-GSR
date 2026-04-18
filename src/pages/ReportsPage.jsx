@@ -8,59 +8,48 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import { fetchReports, downloadReport } from '../api/api';
 import './AnalystDashboard.css';
 import './ReportsPage.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ZONES = ['Quetta', 'Kech', 'Zhob', 'Pishin', 'Swat', 'Dir'];
+
+const ZONE_ID_MAP = {
+    Quetta: 'quetta',
+    Kech:   'kech',
+    Zhob:   'zhob',
+    Pishin: 'pishin',
+    Swat:   'swat',
+    Dir:    'dir',
+};
+
 const RISK_COLORS = {
-    Critical: { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', border: 'rgba(239,68,68,0.3)' },
-    High: { bg: 'rgba(249,115,22,0.12)', color: '#F97316', border: 'rgba(249,115,22,0.3)' },
-    Medium: { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: 'rgba(245,158,11,0.3)' },
-    Low: { bg: 'rgba(34,197,94,0.12)', color: '#22C55E', border: 'rgba(34,197,94,0.3)' },
+    Critical: { bg: 'rgba(239,68,68,0.12)',  color: '#EF4444', border: 'rgba(239,68,68,0.3)' },
+    High:     { bg: 'rgba(249,115,22,0.12)', color: '#F97316', border: 'rgba(249,115,22,0.3)' },
+    Medium:   { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: 'rgba(245,158,11,0.3)' },
+    Low:      { bg: 'rgba(34,197,94,0.12)',  color: '#22C55E', border: 'rgba(34,197,94,0.3)' },
 };
+
 const STATUS_COLORS = {
-    Generated: { bg: 'rgba(34,197,94,0.12)', color: '#22C55E', border: 'rgba(34,197,94,0.3)' },
+    Generated:  { bg: 'rgba(34,197,94,0.12)',  color: '#22C55E', border: 'rgba(34,197,94,0.3)' },
     Processing: { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: 'rgba(245,158,11,0.3)' },
-    Failed: { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', border: 'rgba(239,68,68,0.3)' },
-};
-const REPORT_SUMMARIES = {
-    'RPT-001': 'Analysis of terrain movement in Quetta South confirmed 3 active locust swarm signatures with confidence scores averaging 96%. DBSCAN clustering identified 7 spatial groups moving north-northeast at 12 km/h. Immediate agricultural advisory recommended.',
-    'RPT-002': 'Full-spectrum assessment of Swat Valley covering movement, risk, and sensor data. 98% confidence locust swarm detected. Velocity profiles confirm coordinated migration pattern. Field officer deployment advised within 48 hours.',
-    'RPT-003': 'Movement signature analysis for Kech District covering Feb 27. Unusual herd movement detected near Kech crossing with 94% confidence. Pattern consistent with seasonal animal migration, monitoring continued.',
-    'RPT-004': 'Risk scoring model applied to Zhob sector data. Report pending final processing—data pipeline ingesting 3 additional sensor feeds. Preliminary risk score: 71/100. Expected completion within 2 hours.',
-    'RPT-005': 'Comprehensive assessment for Pishin Plains. Scattered movement patterns with 82% confidence. No immediate threat detected. Vegetation index at 0.28 (sparse) with nominal locust activity markers in southern quadrant.',
-    'RPT-006': 'Movement summary for Dir District, Feb 26. Routine terrain oscillations recorded. Low risk classification maintained. No animal or insect swarm signatures detected above threshold confidence level.',
-    'RPT-007': 'Report generation failed due to sensor feed timeout in Quetta North sector. Data pipeline interrupted at 03:17 UTC on Feb 25. Recommend re-running report after sensor reconnect is confirmed by field team.',
-    'RPT-008': 'Risk analysis for Swat covering critical swarm event of Feb 25. Confidence 85%, swarm moving 10 km/h NW. Three additional sub-clusters identified by DBSCAN. Agricultural and civilian advisory issued.',
+    Failed:     { bg: 'rgba(239,68,68,0.12)',  color: '#EF4444', border: 'rgba(239,68,68,0.3)' },
 };
 
-const INITIAL_REPORTS = [
-    { id: 'RPT-001', zone: 'Quetta', type: 'Risk Analysis', risk: 'Critical', by: 'Ahmed Hassan', date: '28 Feb 2026', status: 'Generated' },
-    { id: 'RPT-002', zone: 'Swat', type: 'Full Report', risk: 'Critical', by: 'Ahmed Hassan', date: '28 Feb 2026', status: 'Generated' },
-    { id: 'RPT-003', zone: 'Kech', type: 'Movement Summary', risk: 'High', by: 'Sara Malik', date: '27 Feb 2026', status: 'Generated' },
-    { id: 'RPT-004', zone: 'Zhob', type: 'Risk Analysis', risk: 'High', by: 'Ahmed Hassan', date: '27 Feb 2026', status: 'Processing' },
-    { id: 'RPT-005', zone: 'Pishin', type: 'Full Report', risk: 'Medium', by: 'Omar Farooq', date: '26 Feb 2026', status: 'Generated' },
-    { id: 'RPT-006', zone: 'Dir', type: 'Movement Summary', risk: 'Low', by: 'Sara Malik', date: '26 Feb 2026', status: 'Generated' },
-    { id: 'RPT-007', zone: 'Quetta', type: 'Full Report', risk: 'Critical', by: 'Ahmed Hassan', date: '25 Feb 2026', status: 'Failed' },
-    { id: 'RPT-008', zone: 'Swat', type: 'Risk Analysis', risk: 'Critical', by: 'Omar Farooq', date: '25 Feb 2026', status: 'Generated' },
-];
-
-// ─── Shared download util ─────────────────────────────────────────────────────
-const triggerDownload = (report) => {
-    const content = `ASGUS-1 GSR SYSTEM REPORT\n======================\nReport ID:   ${report.id}\nZone:        ${report.zone}\nReport Type: ${report.type}\nRisk Level:  ${report.risk}\nGenerated By:${report.by}\nDate:        ${report.date}\nStatus:      ${report.status}\nGenerated:   ${new Date().toISOString()}\n\nSummary:\n${REPORT_SUMMARIES[report.id] || 'Report content unavailable.'}\n\nThis report was generated by the ASGUS-1 GSR Intelligent Terrain Movement Detection System.`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `asgus1-report-${report.id}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
-// Inline Sidebar and Topbar removed, using global components
+// ─── Map backend log to report format ─────────────────────────────────────────
+const mapLogToReport = (log, index) => ({
+    id:     `RPT-${String(index + 1).padStart(3, '0')}`,
+    zone:   log.detail?.replace('PDF report for ', '') || 'Unknown',
+    type:   'Full Report',
+    risk:   'Medium',
+    by:     log.user_id || 'System',
+    date:   log.timestamp
+        ? new Date(log.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'N/A',
+    status: 'Generated',
+    log_id: log.log_id,
+});
 
 // ─── Pill helpers ─────────────────────────────────────────────────────────────
 const RiskPill = ({ risk }) => {
@@ -83,7 +72,7 @@ const StatusPill = ({ status }) => {
 };
 
 // ─── View Report Modal ────────────────────────────────────────────────────────
-const ViewReportModal = ({ report, onClose }) => {
+const ViewReportModal = ({ report, onClose, onDownload }) => {
     if (!report) return null;
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -97,12 +86,12 @@ const ViewReportModal = ({ report, onClose }) => {
                     <div className="rpt-meta-grid">
                         {[
                             ['Report ID', <span className="mono" style={{ color: '#F59E0B' }}>{report.id}</span>],
-                            ['Zone', report.zone],
-                            ['Type', report.type],
-                            ['Risk Level', <RiskPill risk={report.risk} />],
+                            ['Zone',      report.zone],
+                            ['Type',      report.type],
+                            ['Risk Level',<RiskPill risk={report.risk} />],
                             ['Generated By', report.by],
-                            ['Date', report.date],
-                            ['Status', <StatusPill status={report.status} />],
+                            ['Date',      report.date],
+                            ['Status',    <StatusPill status={report.status} />],
                         ].map(([k, v]) => (
                             <div key={k} className="rpt-meta-row">
                                 <span className="rpt-meta-key">{k}</span>
@@ -112,12 +101,14 @@ const ViewReportModal = ({ report, onClose }) => {
                     </div>
                     <div className="topbar-divider" style={{ width: '100%', margin: '16px 0' }}></div>
                     <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Report Summary</div>
-                    <div className="rpt-summary-box">{REPORT_SUMMARIES[report.id] || 'Summary not available.'}</div>
-
+                    <div className="rpt-summary-box">
+                        Zone risk analysis report for {report.zone}. Generated on {report.date}.
+                        Click download to get the full PDF report with detection events and risk scores.
+                    </div>
                     <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>
                         <button className="drawer-btn btn-outline" style={{ padding: '10px 20px', fontSize: 13, borderRadius: 6 }} onClick={onClose}>Close</button>
-                        <button className="generate-btn" style={{ width: 'auto', padding: '10px 20px' }} onClick={() => triggerDownload(report)}>
-                            <Download size={14} style={{ marginRight: 6 }} />Download
+                        <button className="generate-btn" style={{ width: 'auto', padding: '10px 20px' }} onClick={() => onDownload(report)}>
+                            <Download size={14} style={{ marginRight: 6 }} />Download PDF
                         </button>
                     </div>
                 </div>
@@ -128,35 +119,35 @@ const ViewReportModal = ({ report, onClose }) => {
 
 // ─── Generate New Report Modal ────────────────────────────────────────────────
 const GenerateModal = ({ onClose, onGenerated }) => {
-    const [zone, setZone] = useState(ZONES[0]);
+    const [zone, setZone]             = useState(ZONES[0]);
     const [reportType, setReportType] = useState('Full Report');
-    const [fromDate, setFromDate] = useState('2026-02-21');
-    const [toDate, setToDate] = useState('2026-02-28');
+    const [fromDate, setFromDate]     = useState('2026-02-21');
+    const [toDate, setToDate]         = useState('2026-02-28');
     const [includeCharts, setIncludeCharts] = useState(true);
     const [generating, setGenerating] = useState(false);
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         setGenerating(true);
-        setTimeout(() => {
-            const newId = `RPT-${String(Math.floor(Math.random() * 900) + 100)}`;
-            const newReport = {
-                id: newId, zone, type: reportType,
-                risk: 'Medium', by: 'Ahmed Hassan',
-                date: '28 Feb 2026', status: 'Generated',
-            };
-            const content = `ASGUS-1 GSR SYSTEM REPORT\n======================\nReport ID:   ${newId}\nZone:        ${zone}\nReport Type: ${reportType}\nDate Range:  ${fromDate} to ${toDate}\nGenerated:   ${new Date().toISOString()}\nConfidence:  94%\nRisk Level:  Medium\n\nThis report was generated by the ASGUS-1 GSR Intelligent Terrain Movement Detection System.`;
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `asgus1-report-${newId}.txt`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        try {
+            const zoneId = ZONE_ID_MAP[zone] || zone.toLowerCase() || 'quetta';
+            await downloadReport(zoneId);
 
-            setGenerating(false);
+            const newReport = {
+                id:     `RPT-${String(Math.floor(Math.random() * 900) + 100)}`,
+                zone,
+                type:   reportType,
+                risk:   'Medium',
+                by:     'Current User',
+                date:   new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                status: 'Generated',
+            };
             onClose();
             onGenerated(newReport, 'Report downloaded successfully');
-        }, 2000);
+        } catch (err) {
+            console.error('Report generation failed:', err);
+            setGenerating(false);
+            onGenerated(null, 'Report generation failed — check connection');
+        }
     };
 
     return (
@@ -206,16 +197,31 @@ const GenerateModal = ({ onClose, onGenerated }) => {
 const ReportsPage = () => {
     const navigate = useNavigate();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-    const [reports, setReports] = useState(INITIAL_REPORTS);
-    const [search, setSearch] = useState('');
+    const [reports, setReports]       = useState([]);
+    const [search, setSearch]         = useState('');
     const [filterZone, setFilterZone] = useState('All Zones');
     const [filterRisk, setFilterRisk] = useState('All Levels');
     const [filterType, setFilterType] = useState('All Types');
     const [filterFrom, setFilterFrom] = useState('');
-    const [filterTo, setFilterTo] = useState('');
+    const [filterTo, setFilterTo]     = useState('');
     const [viewReport, setViewReport] = useState(null);
     const [showGenerate, setShowGenerate] = useState(false);
-    const [toast, setToast] = useState(null);
+    const [toast, setToast]           = useState(null);
+
+    // ── Fetch real reports from backend ───────────────
+    useEffect(() => {
+        const loadReports = async () => {
+            try {
+                const data = await fetchReports();
+                if (data && data.length > 0) {
+                    setReports(data.map(mapLogToReport));
+                }
+            } catch (err) {
+                console.error('Failed to load reports:', err);
+            }
+        };
+        loadReports();
+    }, []);
 
     const showToast = (msg) => {
         setToast(msg);
@@ -227,6 +233,18 @@ const ReportsPage = () => {
         setFilterType('All Types'); setFilterFrom(''); setFilterTo('');
     };
 
+    // ── Real PDF download ─────────────────────────────
+    const handleDownload = async (report) => {
+        try {
+            const zoneId = ZONE_ID_MAP[report.zone] || report.zone?.toLowerCase() || 'quetta';
+            await downloadReport(zoneId);
+            showToast(`Report for ${report.zone} downloaded`);
+        } catch (err) {
+            console.error('Download failed:', err);
+            showToast('Download failed — try again');
+        }
+    };
+
     const filtered = useMemo(() => reports.filter(r => {
         if (search && !r.id.toLowerCase().includes(search.toLowerCase()) && !r.zone.toLowerCase().includes(search.toLowerCase())) return false;
         if (filterZone !== 'All Zones' && r.zone !== filterZone) return false;
@@ -236,10 +254,14 @@ const ReportsPage = () => {
     }), [reports, search, filterZone, filterRisk, filterType]);
 
     const stats = useMemo(() => ({
-        total: reports.length,
-        thisWeek: reports.filter(r => r.date.includes('28 Feb') || r.date.includes('27 Feb')).length,
+        total:      reports.length,
+        thisWeek:   reports.filter(r => {
+            const d = new Date(r.date);
+            const now = new Date();
+            return (now - d) < 7 * 24 * 60 * 60 * 1000;
+        }).length,
         processing: reports.filter(r => r.status === 'Processing').length,
-        failed: reports.filter(r => r.status === 'Failed').length,
+        failed:     reports.filter(r => r.status === 'Failed').length,
     }), [reports]);
 
     const handleGenerated = (newReport, msg) => {
@@ -279,7 +301,6 @@ const ReportsPage = () => {
 
                     {/* ── Filter Bar ── */}
                     <div style={{ background: '#0D0D0D', border: '1px solid #1E1E1E', borderRadius: 8, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        {/* Search */}
                         <div style={{ position: 'relative', width: 260 }}>
                             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555' }} />
                             <input
@@ -290,20 +311,16 @@ const ReportsPage = () => {
                                 style={{ ...selectStyle, paddingLeft: 32, width: '100%', boxSizing: 'border-box' }}
                             />
                         </div>
-
                         <select style={selectStyle} value={filterZone} onChange={e => setFilterZone(e.target.value)}>
                             <option>All Zones</option>
                             {ZONES.map(z => <option key={z}>{z}</option>)}
                         </select>
-
                         <select style={selectStyle} value={filterRisk} onChange={e => setFilterRisk(e.target.value)}>
                             {['All Levels', 'Critical', 'High', 'Medium', 'Low'].map(o => <option key={o}>{o}</option>)}
                         </select>
-
                         <select style={selectStyle} value={filterType} onChange={e => setFilterType(e.target.value)}>
                             {['All Types', 'Risk Analysis', 'Movement Summary', 'Full Report'].map(o => <option key={o}>{o}</option>)}
                         </select>
-
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <label style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>From</label>
                             <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...selectStyle, padding: '7px 10px' }} />
@@ -312,7 +329,6 @@ const ReportsPage = () => {
                             <label style={{ fontSize: 11, color: '#555' }}>To</label>
                             <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...selectStyle, padding: '7px 10px' }} />
                         </div>
-
                         <button
                             onClick={clearFilters}
                             style={{ background: 'transparent', border: '1px solid #F59E0B', color: '#F59E0B', borderRadius: 6, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.15s', marginLeft: 'auto' }}
@@ -326,10 +342,10 @@ const ReportsPage = () => {
                     {/* ── Stat Cards ── */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
                         {[
-                            { label: 'Total Reports', val: stats.total, color: '#F5F5F5' },
-                            { label: 'Generated This Week', val: stats.thisWeek, color: '#F59E0B' },
-                            { label: 'Pending / Processing', val: stats.processing, color: '#F97316' },
-                            { label: 'Failed', val: stats.failed, color: '#EF4444' },
+                            { label: 'Total Reports',           val: stats.total,      color: '#F5F5F5' },
+                            { label: 'Generated This Week',     val: stats.thisWeek,   color: '#F59E0B' },
+                            { label: 'Pending / Processing',    val: stats.processing, color: '#F97316' },
+                            { label: 'Failed',                  val: stats.failed,     color: '#EF4444' },
                         ].map(s => (
                             <div key={s.label} style={{ background: '#0D0D0D', border: '1px solid #1E1E1E', borderRadius: 8, padding: '16px 20px' }}>
                                 <div style={{ fontSize: 30, fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 6 }}>{s.val}</div>
@@ -357,7 +373,7 @@ const ReportsPage = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', gap: 12 }}>
                                                 <FileX size={40} color="#333" />
                                                 <div style={{ fontSize: 16, fontWeight: 700, color: '#F5F5F5' }}>No reports found</div>
-                                                <div style={{ fontSize: 13, color: '#555' }}>Try adjusting your filters</div>
+                                                <div style={{ fontSize: 13, color: '#555' }}>Generate your first report or adjust filters</div>
                                                 <button onClick={clearFilters} style={{ background: 'transparent', border: 'none', color: '#F59E0B', cursor: 'pointer', fontSize: 13, padding: '4px 0' }}>Clear Filters</button>
                                             </div>
                                         </td>
@@ -380,8 +396,8 @@ const ReportsPage = () => {
                                             <div style={{ display: 'flex', gap: 8 }}>
                                                 <button
                                                     className="rpt-action-btn"
-                                                    onClick={() => triggerDownload(row)}
-                                                    title="Download"
+                                                    onClick={() => handleDownload(row)}
+                                                    title="Download PDF"
                                                     style={{ background: '#161616', border: '1px solid #2A2A2A', color: '#F5F5F5' }}
                                                 >
                                                     <Download size={13} />
@@ -401,7 +417,6 @@ const ReportsPage = () => {
                         </table>
                     </div>
 
-                    {/* Footer count */}
                     {filtered.length > 0 && (
                         <div style={{ fontSize: 12, color: '#444', textAlign: 'right' }}>
                             Showing <span style={{ color: '#F59E0B' }}>{filtered.length}</span> of {reports.length} reports
@@ -410,13 +425,21 @@ const ReportsPage = () => {
                 </main>
             </div>
 
-            {/* Modals */}
-            {viewReport && <ViewReportModal report={viewReport} onClose={() => setViewReport(null)} />}
-            {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} />}
+            {viewReport && (
+                <ViewReportModal
+                    report={viewReport}
+                    onClose={() => setViewReport(null)}
+                    onDownload={handleDownload}
+                />
+            )}
+            {showGenerate && (
+                <GenerateModal
+                    onClose={() => setShowGenerate(false)}
+                    onGenerated={handleGenerated}
+                />
+            )}
 
-            {/* Toast */}
             {toast && <div className="success-toast">{toast}</div>}
-
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );

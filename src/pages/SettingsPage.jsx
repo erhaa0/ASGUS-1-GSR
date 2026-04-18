@@ -4,6 +4,7 @@ import { useUser } from '../App';
 import Topbar from '../components/Topbar';
 import Sidebar from '../components/Sidebar';
 import { Lock, Eye, EyeOff, Check, X, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { updateUser as apiUpdateUser, changePassword, fetchPreferences, updatePreferences } from '../api/api';
 import './SettingsPage.css';
 
 const RolePill = ({ role, color }) => (
@@ -22,13 +23,13 @@ export default function SettingsPage() {
     const role = user?.role || 'analyst';
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
-    const isAnalyst = role === 'analyst';
+    const isAnalyst     = role === 'analyst';
     const isFieldOfficer = role === 'field-officer';
-    const isAdmin = role === 'admin';
+    const isAdmin       = role === 'admin';
 
-    let accentColor = '#F59E0B'; // analyst
+    let accentColor = '#F59E0B';
     if (isFieldOfficer) accentColor = '#22C55E';
-    if (isAdmin) accentColor = '#3B82F6';
+    if (isAdmin)        accentColor = '#3B82F6';
 
     const [toast, setToast] = useState(null);
     const showToast = (msg) => {
@@ -36,7 +37,6 @@ export default function SettingsPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    // Scroll to hash on mount
     useEffect(() => {
         if (location.hash) {
             const id = location.hash.replace('#', '');
@@ -47,34 +47,55 @@ export default function SettingsPage() {
         }
     }, [location.hash]);
 
+    // ── Load preferences from backend on mount ────────
+    useEffect(() => {
+        if (!user?.user_id) return;
+        fetchPreferences(user.user_id)
+            .then(data => {
+                const p = data?.preferences;
+                if (!p) return;
+                if (p.notifs   !== undefined) setNotifs(p.notifs);
+                if (p.lang     !== undefined) setLang(p.lang);
+                if (p.tz       !== undefined) setTz(p.tz);
+                if (p.df       !== undefined) setDf(p.df);
+                if (p.mapView  !== undefined) setMapView(p.mapView);
+                if (p.threshConf !== undefined) setThreshConf(p.threshConf);
+                if (p.threshCrit !== undefined) setThreshCrit(p.threshCrit);
+                if (p.threshPoll !== undefined) setThreshPoll(p.threshPoll);
+                if (p.sysRet   !== undefined) setSysRet(p.sysRet);
+                if (p.sysPoll  !== undefined) setSysPoll(p.sysPoll);
+                if (p.maintMode !== undefined) setMaintMode(p.maintMode);
+            })
+            .catch(() => { /* keep defaults on error */ });
+    }, [user?.user_id]);
+
     // Section 1: Profile
     const [profileName, setProfileName] = useState(user?.name || '');
     const [profileSaving, setProfileSaving] = useState(false);
 
     // Section 2: Password
-    const [curPass, setCurPass] = useState('');
-    const [newPass, setNewPass] = useState('');
+    const [curPass, setCurPass]     = useState('');
+    const [newPass, setNewPass]     = useState('');
     const [confirmPass, setConfirmPass] = useState('');
-    const [showCur, setShowCur] = useState(false);
-    const [showNew, setShowNew] = useState(false);
-    const [showConf, setShowConf] = useState(false);
-    const [pwSaving, setPwSaving] = useState(false);
+    const [showCur, setShowCur]     = useState(false);
+    const [showNew, setShowNew]     = useState(false);
+    const [showConf, setShowConf]   = useState(false);
+    const [pwSaving, setPwSaving]   = useState(false);
 
     let pwStrength = 0;
     if (newPass.length > 0) pwStrength = 1;
     if (newPass.length >= 8) pwStrength = 2;
     if (newPass.length >= 8 && /[A-Z]/.test(newPass) && /[0-9]/.test(newPass)) pwStrength = 3;
     if (newPass.length >= 10 && /[A-Z]/.test(newPass) && /[0-9]/.test(newPass) && /[^A-Za-z0-9]/.test(newPass)) pwStrength = 4;
-
     const strengthWords = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 
     // Section 3: Notifications
     const [notifs, setNotifs] = useState({ crit: true, high: true, med: false, digest: true, maint: true });
 
     // Section 4: Display
-    const [lang, setLang] = useState('en');
-    const [tz, setTz] = useState('PKT');
-    const [df, setDf] = useState('DD/MM/YYYY');
+    const [lang, setLang]       = useState('en');
+    const [tz, setTz]           = useState('PKT');
+    const [df, setDf]           = useState('DD/MM/YYYY');
     const [mapView, setMapView] = useState('Balochistan Focus');
 
     // Section 5: Thresholds
@@ -83,32 +104,64 @@ export default function SettingsPage() {
     const [threshPoll, setThreshPoll] = useState(30);
 
     // Section 6: System
-    const [sysRet, setSysRet] = useState('90 days');
-    const [sysPoll, setSysPoll] = useState('30s');
+    const [sysRet, setSysRet]       = useState('90 days');
+    const [sysPoll, setSysPoll]     = useState('30s');
     const [maintMode, setMaintMode] = useState(false);
     const [pendingMaint, setPendingMaint] = useState(false);
 
     // Section 7: Danger
-    const [showClearModal, setShowClearModal] = useState(false);
+    const [showClearModal, setShowClearModal]     = useState(false);
     const [showSignoutModal, setShowSignoutModal] = useState(false);
 
-    const handleSaveProfile = () => {
-        setProfileSaving(true);
-        setTimeout(() => {
-            updateUser({ ...user, name: profileName });
-            setProfileSaving(false);
-            showToast('Profile updated successfully');
-        }, 1500);
+    // ── Helper: persist all preferences to backend ────
+    const savePrefs = async (overrides = {}) => {
+        if (!user?.user_id) return;
+        const prefs = {
+            notifs, lang, tz, df, mapView,
+            threshConf, threshCrit, threshPoll,
+            sysRet, sysPoll, maintMode,
+            ...overrides,
+        };
+        await updatePreferences(user.user_id, JSON.stringify(prefs));
     };
 
-    const handleSavePassword = () => {
+    // ── Save profile — calls real API ─────────────────
+    const handleSaveProfile = async () => {
+        setProfileSaving(true);
+        try {
+            if (user?.user_id) {
+                await apiUpdateUser(user.user_id, { full_name: profileName });
+            }
+            updateUser({ ...user, name: profileName });
+            showToast('Profile updated successfully');
+        } catch (err) {
+            console.error('Profile save failed:', err);
+            showToast('Failed to update profile');
+        } finally {
+            setProfileSaving(false);
+        }
+    };
+
+    // ── Save password — calls real API ────────────────
+    const handleSavePassword = async () => {
         if (!curPass || !newPass || newPass !== confirmPass || newPass.length < 8) return;
         setPwSaving(true);
-        setTimeout(() => {
-            setPwSaving(false);
+        try {
+            if (user?.user_id) {
+                await changePassword(user.user_id, {
+                    current_password: curPass,
+                    new_password:     newPass,
+                    confirm_password: confirmPass,
+                });
+            }
             setCurPass(''); setNewPass(''); setConfirmPass('');
             showToast('Password updated successfully');
-        }, 1500);
+        } catch (err) {
+            console.error('Password change failed:', err);
+            showToast('Failed — check current password');
+        } finally {
+            setPwSaving(false);
+        }
     };
 
     const handleClearData = () => {
@@ -148,7 +201,7 @@ export default function SettingsPage() {
                             <p>Manage your account preferences and system configuration</p>
                         </div>
 
-                        {/* Section 1: Profile Information */}
+                        {/* Section 1: Profile */}
                         <div className="settings-card">
                             <div className="settings-card-header">
                                 <h2 className="settings-card-title">Profile Information</h2>
@@ -169,7 +222,7 @@ export default function SettingsPage() {
                                 </div>
                                 <div className="settings-input-group">
                                     <label>Email Address</label>
-                                    <input className="settings-input" value={user?.email || (user?.name?.split(' ').join('.').toLowerCase() + '@asgus1.gov.pk')} disabled />
+                                    <input className="settings-input" value={user?.email || ''} disabled />
                                 </div>
                                 <div className="settings-input-group">
                                     <label>Role</label>
@@ -181,7 +234,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="settings-btn-row">
                                 <button className="settings-btn" style={{ background: accentColor }} onClick={handleSaveProfile} disabled={profileSaving || !profileName}>
-                                    {profileSaving ? <div className="spinner black" style={{ width: 14, height: 14, borderWidth: 2, borderColor: '#fff white white white' }}></div> : 'Save Profile'}
+                                    {profileSaving ? <div className="spinner black" style={{ width: 14, height: 14, borderWidth: 2 }}></div> : 'Save Profile'}
                                 </button>
                             </div>
                         </div>
@@ -237,12 +290,12 @@ export default function SettingsPage() {
                             </div>
                             <div className="settings-btn-row">
                                 <button className="settings-btn" style={{ background: accentColor }} onClick={handleSavePassword} disabled={pwSaving || !curPass || newPass.length < 8 || newPass !== confirmPass}>
-                                    {pwSaving ? <div className="spinner black" style={{ width: 14, height: 14, borderWidth: 2, borderColor: '#fff white white white' }}></div> : 'Update Password'}
+                                    {pwSaving ? <div className="spinner black" style={{ width: 14, height: 14, borderWidth: 2 }}></div> : 'Update Password'}
                                 </button>
                             </div>
                         </div>
 
-                        {/* Section 3: Notification Preferences */}
+                        {/* Section 3: Notifications */}
                         <div className="settings-card" id="preferences">
                             <div className="settings-card-header">
                                 <h2 className="settings-card-title">Notification Preferences</h2>
@@ -285,11 +338,11 @@ export default function SettingsPage() {
                                 <Toggle checked={notifs.maint} onChange={() => setNotifs({ ...notifs, maint: !notifs.maint })} />
                             </div>
                             <div className="settings-btn-row">
-                                <button className="settings-btn" style={{ background: accentColor }} onClick={() => showToast('Preferences saved')}>Save Preferences</button>
+                                <button className="settings-btn" style={{ background: accentColor }} onClick={async () => { await savePrefs({ notifs }); showToast('Preferences saved'); }}>Save Preferences</button>
                             </div>
                         </div>
 
-                        {/* Section 4: Display Preferences */}
+                        {/* Section 4: Display */}
                         <div className="settings-card">
                             <div className="settings-card-header">
                                 <h2 className="settings-card-title">Display Preferences</h2>
@@ -331,11 +384,11 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                             <div className="settings-btn-row">
-                                <button className="settings-btn" style={{ background: accentColor }} onClick={() => showToast('Display settings saved')}>Save Display Settings</button>
+                                <button className="settings-btn" style={{ background: accentColor }} onClick={async () => { await savePrefs({ lang, tz, df, mapView }); showToast('Display settings saved'); }}>Save Display Settings</button>
                             </div>
                         </div>
 
-                        {/* Section 5: Alert Thresholds */}
+                        {/* Section 5: Thresholds */}
                         {!isFieldOfficer && (
                             <div className="settings-card">
                                 <div className="settings-card-header">
@@ -365,12 +418,12 @@ export default function SettingsPage() {
                                     <input type="range" min="10" max="120" step="10" value={threshPoll} onChange={e => setThreshPoll(e.target.value)} />
                                 </div>
                                 <div className="settings-btn-row">
-                                    <button className="settings-btn" style={{ background: accentColor }} onClick={() => showToast('Thresholds saved')}>Save Thresholds</button>
+                                    <button className="settings-btn" style={{ background: accentColor }} onClick={async () => { await savePrefs({ threshConf, threshCrit, threshPoll }); showToast('Thresholds saved'); }}>Save Thresholds</button>
                                 </div>
                             </div>
                         )}
 
-                        {/* Section 6: System Preferences */}
+                        {/* Section 6: System — Admin only */}
                         {isAdmin && (
                             <div className="settings-card">
                                 <div className="settings-card-header">
@@ -427,7 +480,7 @@ export default function SettingsPage() {
                                 )}
 
                                 <div className="settings-btn-row">
-                                    <button className="settings-btn" style={{ background: '#3B82F6' }} onClick={() => showToast('System settings saved')}>Save System Settings</button>
+                                    <button className="settings-btn" style={{ background: '#3B82F6' }} onClick={async () => { await savePrefs({ sysRet, sysPoll, maintMode }); showToast('System settings saved'); }}>Save System Settings</button>
                                 </div>
                             </div>
                         )}
@@ -438,7 +491,6 @@ export default function SettingsPage() {
                                 <h2 className="settings-card-title"><ShieldAlert size={18} color="#EF4444" /> Danger Zone</h2>
                                 <div className="settings-divider" style={{ background: 'rgba(239, 68, 68, 0.2)', marginTop: 16 }}></div>
                             </div>
-
                             <div className="action-row">
                                 <div className="toggle-info">
                                     <div className="toggle-label">Clear Local Data</div>
@@ -481,7 +533,6 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         )}
-
                     </div>
                 </div>
             </div>

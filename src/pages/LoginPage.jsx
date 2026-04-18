@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../App';
 import TopoAnimation from '../components/TopoAnimation';
 import './LoginPage.css';
+import { loginUser } from '../api/api';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -20,32 +21,29 @@ const LoginPage = () => {
         return () => clearInterval(timer);
     }, []);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setIsLoading(true);
         setError('');
 
         // Simulate authentication delay
-        setTimeout(() => {
+        try {
+            const data = await loginUser(email, password);
+            updateUser({
+                token:   data.access_token,
+                role:    data.role,
+                name:    data.name,
+                badge:   data.badge,
+                user_id: data.user_id,
+            });
+            if (data.role === 'admin') navigate('/admin');
+            else if (data.role === 'field-officer') navigate('/field-officer');
+            else navigate('/analyst');
+        } catch (err) {
+            setError(err.message || 'Invalid credentials');
+        } finally {
             setIsLoading(false);
-
-            const userData = {
-                role: selectedRole, // 'analyst', 'field-officer', or 'admin'
-                name: selectedRole === 'analyst' ? 'Ahmed Hassan' :
-                    selectedRole === 'field-officer' ? 'Capt. Imran Shah' : 'System Admin',
-                badge: selectedRole === 'analyst' ? 'AN-1042' :
-                    selectedRole === 'field-officer' ? 'FO-2847' : 'AD-0001'
-            };
-            updateUser(userData);
-
-            if (selectedRole === 'analyst') {
-                navigate('/analyst');
-            } else if (selectedRole === 'field-officer') {
-                navigate('/field-officer');
-            } else {
-                navigate('/admin');
-            }
-        }, 1500);
+        }
     };
 
     const formatDate = (date) => {

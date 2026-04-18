@@ -7,36 +7,46 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import { fetchDetections, updateDetectionStatus, bulkUpdateDetections, fetchFieldOfficers, updateUser } from '../api/api';
 import './AnalystDashboard.css';
 import './AlertFeedPage.css';
 
-// ─── Constants & Data ─────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const RISK_COLORS = {
     Critical: { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', border: '#EF4444' },
-    High: { bg: 'rgba(249,115,22,0.12)', color: '#F97316', border: '#F97316' },
-    Medium: { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: '#F59E0B' },
-    Low: { bg: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '#22C55E' },
+    High:     { bg: 'rgba(249,115,22,0.12)', color: '#F97316', border: '#F97316' },
+    Medium:   { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: '#F59E0B' },
+    Low:      { bg: 'rgba(34,197,94,0.12)',  color: '#22C55E', border: '#22C55E' },
 };
 
 const STATUS_INDICATORS = {
-    Active: '#EF4444',
-    Monitoring: '#F59E0B',
-    Resolved: '#22C55E',
+    Active:    '#EF4444',
+    Monitoring:'#F59E0B',
+    Resolved:  '#22C55E',
     Dismissed: '#666666'
 };
 
-const INITIAL_ALERTS = [
-    { id: 'ALT-0047', zone: 'Swat', province: 'KPK', risk: 'Critical', status: 'Active', type: 'Locust Swarm', time: '28 Feb 2026 · 14:22:05 PKT', timestamp: 1709115725000, conf: 98, vel: '22 km/h NE', clusters: 14, desc: 'Large scale locust swarm detected via DBSCAN clustering. 14 anomalous regions identified. Movement NE at 22 km/h. Confidence 98%.' },
-    { id: 'ALT-0046', zone: 'Kech', province: 'Balochistan', risk: 'Critical', status: 'Active', type: 'Unknown', time: '28 Feb 2026 · 14:15:30 PKT', timestamp: 1709115330000, conf: 97, vel: '18 km/h NW', clusters: 11, desc: 'Rapid movement signature detected near Kech crossing. Image differencing shows 340 sq km affected area. Confidence 97%.' },
-    { id: 'ALT-0045', zone: 'Quetta', province: 'Balochistan', risk: 'High', status: 'Monitoring', type: 'Unknown', time: '28 Feb 2026 · 13:42:15 PKT', timestamp: 1709113335000, conf: 89, vel: '10 km/h NW', clusters: 6, desc: 'Sustained terrain vibration pattern detected south of Quetta. Multiple signatures confirmed across 3 consecutive image pairs. Confidence 89%.' },
-    { id: 'ALT-0044', zone: 'Zhob', province: 'Balochistan', risk: 'High', status: 'Monitoring', type: 'Locust Swarm', time: '28 Feb 2026 · 12:15:00 PKT', timestamp: 1709108100000, conf: 91, vel: '8 km/h NE', clusters: 8, desc: 'Secondary locust cluster forming in agricultural sector 4. Slow NE drift observed. Confidence 91%.' },
-    { id: 'ALT-0043', zone: 'Pishin', province: 'Balochistan', risk: 'Medium', status: 'Active', type: 'Animal Herd', time: '28 Feb 2026 · 11:30:45 PKT', timestamp: 1709105445000, conf: 82, vel: '5 km/h SE', clusters: 4, desc: 'Scattered movement patterns detected across Pishin plains. Low velocity suggests animal herd. Monitoring for convergence. Confidence 82%.' },
-    { id: 'ALT-0042', zone: 'Dir', province: 'KPK', risk: 'Low', status: 'Resolved', type: 'Unknown', time: '28 Feb 2026 · 09:12:30 PKT', timestamp: 1709097150000, conf: 38, vel: '3 km/h S', clusters: 2, desc: 'Minor movement anomaly detected. Subsequent image pair showed dissipation. Likely natural wildlife. Confidence 38%.' },
-    { id: 'ALT-0041', zone: 'Swat', province: 'KPK', risk: 'Critical', status: 'Active', type: 'Locust Swarm', time: '27 Feb 2026 · 18:45:00 PKT', timestamp: 1709045100000, conf: 96, vel: '28 km/h NE', clusters: 17, desc: 'Follow-up detection on ALT-0047 corridor. Swarm density increasing. Velocity accelerating to 28 km/h. Confidence 96%.' },
-    { id: 'ALT-0040', zone: 'Quetta', province: 'Balochistan', risk: 'High', status: 'Active', type: 'Unknown', time: '27 Feb 2026 · 15:20:10 PKT', timestamp: 1709032810000, conf: 84, vel: '14 km/h N', clusters: 7, desc: 'New movement cluster forming north of previous ALT-0045 zone. Possible split swarm behavior. Confidence 84%.' },
-    { id: 'ALT-0039', zone: 'Kech', province: 'Balochistan', risk: 'Medium', status: 'Monitoring', type: 'Locust Swarm', time: '27 Feb 2026 · 11:05:25 PKT', timestamp: 1709017525000, conf: 71, vel: '12 km/h W', clusters: 5, desc: 'Reduced movement activity vs previous detection. Swarm may be settling. Confidence 71%.' },
-    { id: 'ALT-0038', zone: 'Zhob', province: 'Balochistan', risk: 'Low', status: 'Resolved', type: 'Animal Herd', time: '26 Feb 2026 · 08:30:00 PKT', timestamp: 1708921800000, conf: 42, vel: '4 km/h E', clusters: 3, desc: 'False positive confirmed by field officer observation. Animal herd, no agricultural threat. Confidence 42%.' }
-];
+// ─── Map backend detection to frontend alert format ───────────────────────────
+const mapDetection = (d) => ({
+    id:        d.alert_id || d.event_id,
+    event_id:  d.event_id,
+    zone:      d.zone_name,
+    province:  d.province,
+    risk:      d.risk_level,
+    status:    d.status || 'Active',
+    type:      d.event_type || 'Locust Swarm',
+    time:      d.detected_at
+        ? new Date(d.detected_at).toLocaleString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          }) + ' PKT'
+        : '',
+    timestamp: d.detected_at ? new Date(d.detected_at).getTime() : Date.now(),
+    conf:      Math.round((d.confidence || 0) * 100),
+    vel:       d.velocity || 'N/A',
+    clusters:  d.dbscan_clusters || 0,
+    desc:      d.description || `${d.event_type} detected in ${d.zone_name}.`,
+});
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 const RiskPill = ({ risk }) => {
@@ -48,41 +58,67 @@ const RiskPill = ({ risk }) => {
     );
 };
 
-// Inline Sidebar and Topbar removed, using global components
-
 // ─── Main Page Component ──────────────────────────────────────────────────────
 const AlertFeedPage = () => {
     const navigate = useNavigate();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-    const [alerts, setAlerts] = useState(INITIAL_ALERTS);
+    const [alerts, setAlerts] = useState([]);
     const [selectedAlerts, setSelectedAlerts] = useState([]);
-
     const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
     const bulkRef = useRef(null);
-
-    const [unreadCount, setUnreadCount] = useState(2);
+    const [unreadCount, setUnreadCount] = useState(0);
     const [toast, setToast] = useState(null);
     const [assignModalOpen, setAssignModalOpen] = useState(false);
     const [selectedOfficer, setSelectedOfficer] = useState('');
+    const [fieldOfficers, setFieldOfficers]     = useState([]);
+
+    // ── Fetch detections + field officers on mount ────
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const [detData, officersData] = await Promise.all([
+                    fetchDetections({ limit: 50 }),
+                    fetchFieldOfficers(),
+                ]);
+                if (detData) {
+                    const mapped = detData.map(mapDetection);
+                    setAlerts(mapped);
+                    setUnreadCount(mapped.filter(a => a.status === 'Active').length);
+                }
+                if (officersData) setFieldOfficers(officersData);
+            } catch (err) {
+                console.error('Failed to load alerts:', err);
+            }
+        };
+        loadData();
+    }, []);
 
     const showToast = (msg) => {
         setToast(msg);
         setTimeout(() => setToast(null), 3000);
     };
 
-    const handleMarkAllRead = () => {
-        setAlerts(prev => prev.map(a => ({ ...a, status: 'Resolved' })));
-        setUnreadCount(0);
-        showToast("All alerts marked as read");
+    const handleMarkAllRead = async () => {
+        try {
+            const activeIds = alerts.filter(a => a.status === 'Active').map(a => a.event_id);
+            if (activeIds.length > 0) {
+                await bulkUpdateDetections(activeIds, 'Resolved');
+            }
+            setAlerts(prev => prev.map(a => ({ ...a, status: 'Resolved' })));
+            setUnreadCount(0);
+            showToast("All alerts marked as read");
+        } catch (err) {
+            console.error('Mark all read failed:', err);
+        }
     };
 
     // Filters
-    const [search, setSearch] = useState('');
-    const [riskFilter, setRiskFilter] = useState('All Levels');
-    const [zoneFilter, setZoneFilter] = useState('All Zones');
-    const [typeFilter, setTypeFilter] = useState('All Types');
+    const [search, setSearch]           = useState('');
+    const [riskFilter, setRiskFilter]   = useState('All Levels');
+    const [zoneFilter, setZoneFilter]   = useState('All Zones');
+    const [typeFilter, setTypeFilter]   = useState('All Types');
     const [statusFilter, setStatusFilter] = useState('All Status');
-    const [sortOrder, setSortOrder] = useState('Newest First');
+    const [sortOrder, setSortOrder]     = useState('Newest First');
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -94,40 +130,65 @@ const AlertFeedPage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleBulkAction = (action) => {
+    const handleBulkAction = async (action) => {
         if (action === 'assign') {
             setAssignModalOpen(true);
             setBulkActionsOpen(false);
             return;
         }
 
-        setAlerts(prev => prev.map(a => {
-            if (selectedAlerts.includes(a.id)) {
-                if (action === 'dismiss') return { ...a, status: 'Dismissed' };
-                if (action === 'monitor') return { ...a, status: 'Monitoring' };
-            }
-            return a;
-        }));
-
-        const count = selectedAlerts.length;
-        setSelectedAlerts([]);
-        setBulkActionsOpen(false);
-
-        if (action === 'dismiss') showToast(`${count} alerts dismissed`);
-        if (action === 'monitor') showToast(`${count} alerts updated`);
+        const newStatus = action === 'dismiss' ? 'Dismissed' : 'Monitoring';
+        try {
+            const eventIds = alerts
+                .filter(a => selectedAlerts.includes(a.id))
+                .map(a => a.event_id);
+            await bulkUpdateDetections(eventIds, newStatus);
+            setAlerts(prev => prev.map(a =>
+                selectedAlerts.includes(a.id) ? { ...a, status: newStatus } : a
+            ));
+            const count = selectedAlerts.length;
+            setSelectedAlerts([]);
+            setBulkActionsOpen(false);
+            if (action === 'dismiss') showToast(`${count} alerts dismissed`);
+            if (action === 'monitor') showToast(`${count} alerts updated`);
+        } catch (err) {
+            console.error('Bulk action failed:', err);
+        }
     };
 
-    const handleAssignConfirm = () => {
+    const handleAssignConfirm = async () => {
         if (!selectedOfficer) return;
-        const count = selectedAlerts.length;
-        setSelectedAlerts([]);
-        setAssignModalOpen(false);
-        showToast(`${count} alerts assigned to ${selectedOfficer}`);
-        setSelectedOfficer('');
+        try {
+            const officer     = fieldOfficers.find(o => o.user_id === selectedOfficer);
+            const officerName = officer?.full_name || selectedOfficer;
+            // Assign officer to the zone of the first selected alert
+            const firstAlert = alerts.find(a => selectedAlerts.includes(a.id));
+            if (officer && firstAlert) {
+                const zoneId = firstAlert.zone_id ||
+                    `zone_${firstAlert.zone?.toLowerCase().replace(/\s+/g, '_')}`;
+                await updateUser(officer.user_id, { assigned_zone: zoneId });
+            }
+            const count = selectedAlerts.length;
+            setSelectedAlerts([]);
+            setAssignModalOpen(false);
+            showToast(`${count} alerts assigned to ${officerName}`);
+            setSelectedOfficer('');
+        } catch (err) {
+            console.error('Assignment failed:', err);
+            showToast('Assignment failed — try again');
+        }
     };
 
-    const handleSingleStatusChange = (id, newStatus) => {
-        setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+    const handleSingleStatusChange = async (id, newStatus) => {
+        try {
+            const alert = alerts.find(a => a.id === id);
+            if (alert?.event_id) {
+                await updateDetectionStatus(alert.event_id, newStatus);
+            }
+            setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+        } catch (err) {
+            console.error('Status update failed:', err);
+        }
     };
 
     const clearFilters = () => {
@@ -138,6 +199,13 @@ const AlertFeedPage = () => {
     const toggleSelect = (id) => {
         setSelectedAlerts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     };
+
+    // ── Summary counts ────────────────────────────────
+    const totalActive   = alerts.filter(a => a.status === 'Active').length;
+    const criticalCount = alerts.filter(a => a.risk === 'Critical').length;
+    const highCount     = alerts.filter(a => a.risk === 'High').length;
+    const medLowCount   = alerts.filter(a => a.risk === 'Medium' || a.risk === 'Low').length;
+    const resolvedCount = alerts.filter(a => a.status === 'Resolved').length;
 
     const filteredAndSortedAlerts = useMemo(() => {
         let result = alerts.filter(a => {
@@ -152,10 +220,8 @@ const AlertFeedPage = () => {
         const riskVal = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
 
         result.sort((a, b) => {
-            // First pass logic for Newest First: Active ones stay above resolved/dismissed if same group
             const aIsDimmed = a.status === 'Resolved' || a.status === 'Dismissed';
             const bIsDimmed = b.status === 'Resolved' || b.status === 'Dismissed';
-
             if (sortOrder === 'Newest First') {
                 if (aIsDimmed !== bIsDimmed) return aIsDimmed ? 1 : -1;
                 return b.timestamp - a.timestamp;
@@ -212,27 +278,27 @@ const AlertFeedPage = () => {
                     {/* Summary Strip */}
                     <div className="af-summary-strip">
                         <div className="af-summary-col">
-                            <span className="val" style={{ color: '#F5F5F5' }}>18</span>
+                            <span className="val" style={{ color: '#F5F5F5' }}>{totalActive}</span>
                             <span className="lbl">Total Active</span>
                         </div>
                         <div className="af-summary-div"></div>
                         <div className="af-summary-col">
-                            <span className="val" style={{ color: '#EF4444' }}>3</span>
+                            <span className="val" style={{ color: '#EF4444' }}>{criticalCount}</span>
                             <span className="lbl">Critical</span>
                         </div>
                         <div className="af-summary-div"></div>
                         <div className="af-summary-col">
-                            <span className="val" style={{ color: '#F97316' }}>7</span>
+                            <span className="val" style={{ color: '#F97316' }}>{highCount}</span>
                             <span className="lbl">High</span>
                         </div>
                         <div className="af-summary-div"></div>
                         <div className="af-summary-col">
-                            <span className="val" style={{ color: '#F59E0B' }}>8</span>
+                            <span className="val" style={{ color: '#F59E0B' }}>{medLowCount}</span>
                             <span className="lbl">Medium / Low</span>
                         </div>
                         <div className="af-summary-div"></div>
                         <div className="af-summary-col">
-                            <span className="val" style={{ color: '#22C55E' }}>12</span>
+                            <span className="val" style={{ color: '#22C55E' }}>{resolvedCount}</span>
                             <span className="lbl">Resolved Today</span>
                         </div>
                     </div>
@@ -261,7 +327,6 @@ const AlertFeedPage = () => {
                         <select style={selectStyle} value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
                             {['Newest First', 'Oldest First', 'Highest Risk', 'Lowest Risk', 'Highest Confidence'].map(o => <option key={o}>{o}</option>)}
                         </select>
-
                         <button
                             onClick={clearFilters}
                             style={{ background: 'transparent', border: 'none', color: '#F59E0B', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto', fontWeight: 500 }}
@@ -314,7 +379,6 @@ const AlertFeedPage = () => {
                                                         <option key={s} value={s}>{s === alert.status ? '• ' : ''}{s}</option>
                                                     ))}
                                                 </select>
-                                                {/* Visual dot indicator hack since option styling isn't reliable */}
                                                 <div style={{ position: 'relative', marginTop: -22, marginLeft: 10, pointerEvents: 'none' }}>
                                                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_INDICATORS[alert.status] }}></div>
                                                 </div>
@@ -378,10 +442,17 @@ const AlertFeedPage = () => {
                                     style={{ background: '#111111', border: '1px solid #2A2A2A', color: '#F5F5F5', borderRadius: 6, padding: '10px 12px', width: '100%', outline: 'none' }}
                                 >
                                     <option value="" disabled>Select an officer...</option>
-                                    <option value="Capt. Tariq Mahmood">Capt. Tariq Mahmood</option>
-                                    <option value="Lt. Ali Reza">Lt. Ali Reza</option>
-                                    <option value="Sgt. Yasir Khan">Sgt. Yasir Khan</option>
-                                    <option value="Insp. Fatima Bilal">Insp. Fatima Bilal</option>
+                                    {fieldOfficers.length > 0
+                                        ? fieldOfficers.map(o => (
+                                            <option key={o.user_id} value={o.user_id}>{o.full_name}</option>
+                                          ))
+                                        : [
+                                            <option key="fo1" value="fo1">Capt. Tariq Mahmood</option>,
+                                            <option key="fo2" value="fo2">Lt. Ali Reza</option>,
+                                            <option key="fo3" value="fo3">Sgt. Yasir Khan</option>,
+                                            <option key="fo4" value="fo4">Insp. Fatima Bilal</option>,
+                                          ]
+                                    }
                                 </select>
                             </div>
                             <button

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../App';
 import { Bell, ChevronDown, User, Lock, Settings, LogOut, Activity } from 'lucide-react';
+import { fetchDetections, fetchZones } from '../api/api';
 
 const MOCK_NOTIFICATIONS = [
     { id: 1, title: 'Critical Alert: Swat Valley', desc: 'Large scale locust swarm detected moving NE.', time: '2m ago', risk: 'Critical', color: '#EF4444', unread: true },
@@ -19,10 +20,56 @@ const Topbar = ({ subtitle = "Dashboard" }) => {
     const [showProfile, setShowProfile] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+
+    // Load real notifications from recent active detections
+    useEffect(() => {
+        const loadNotifs = async () => {
+            try {
+                const data = await fetchDetections({ limit: 5 });
+                if (data && data.length > 0) {
+                    const riskColors = { Critical: '#EF4444', High: '#F97316', Medium: '#F59E0B', Low: '#22C55E' };
+                    const mapped = data.map((d, i) => ({
+                        id:     d.event_id || i,
+                        title:  `${d.risk_level} Alert: ${d.zone_name}`,
+                        desc:   d.description || `${d.event_type} detected in ${d.zone_name}.`,
+                        time:   d.detected_at ? new Date(d.detected_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '',
+                        risk:   d.risk_level,
+                        color:  riskColors[d.risk_level] || '#F59E0B',
+                        unread: d.status === 'Active',
+                    }));
+                    setNotifications(mapped);
+                }
+            } catch { /* keep MOCK_NOTIFICATIONS as fallback */ }
+        };
+        loadNotifs();
+    }, []);
     const profileRef = useRef(null);
     const notifRef = useRef(null);
 
     const notificationCount = notifications.filter(n => n.unread).length;
+
+    // ── Real analyst stat pills ───────────────────────
+    const [criticalCount, setCriticalCount] = useState(0);
+    const [highCount, setHighCount]         = useState(0);
+    const [zonesCount, setZonesCount]       = useState(0);
+
+    useEffect(() => {
+        if (role !== 'analyst') return;
+        const loadStats = async () => {
+            try {
+                const [detData, zoneData] = await Promise.all([
+                    fetchDetections({ limit: 200 }),
+                    fetchZones(),
+                ]);
+                if (detData) {
+                    setCriticalCount(detData.filter(d => d.risk_level === 'Critical' && d.status === 'Active').length);
+                    setHighCount(detData.filter(d => d.risk_level === 'High' && d.status === 'Active').length);
+                }
+                if (zoneData) setZonesCount(zoneData.length);
+            } catch { /* keep defaults */ }
+        };
+        loadStats();
+    }, [role]);
 
     const markAllRead = () => {
         setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
@@ -81,9 +128,9 @@ const Topbar = ({ subtitle = "Dashboard" }) => {
             <div className="topbar-right">
                 {isAnalyst && (
                     <>
-                        <div className="stat-pill critical">CRITICAL 3</div>
-                        <div className="stat-pill high">HIGH 7</div>
-                        <div className="stat-pill zones">ZONES 24</div>
+                        <div className="stat-pill critical">CRITICAL {criticalCount}</div>
+                        <div className="stat-pill high">HIGH {highCount}</div>
+                        <div className="stat-pill zones">ZONES {zonesCount}</div>
                     </>
                 )}
 
