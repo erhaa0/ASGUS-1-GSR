@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AnalystDashboard from './pages/AnalystDashboard';
@@ -13,6 +13,9 @@ import AdminPanel from './pages/AdminPanel';
 import SystemHealthPage from './pages/SystemHealthPage';
 import SettingsPage from './pages/SettingsPage';
 import BackgroundGrid from './components/BackgroundGrid';
+import KeyboardShortcutHandler from './components/KeyboardShortcutHandler';
+import ToastProvider from './components/ToastProvider';
+import AnimatedRoutes from './components/AnimatedRoutes';
 
 export const UserContext = createContext(null);
 
@@ -64,8 +67,10 @@ function App() {
             <Router>
                 <div className="app-main">
                     <BackgroundGrid />
+                    <KeyboardShortcutHandler />
+                    <ToastProvider />
 
-                    <Routes>
+                    <AnimatedRoutes>
                         <Route path="/" element={<LandingPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/analyst" element={
@@ -119,7 +124,7 @@ function App() {
                             </ProtectedRoute>
                         } />
                         <Route path="*" element={<Navigate to="/login" replace />} />
-                    </Routes>
+                    </AnimatedRoutes>
                 </div>
             </Router>
         </UserProvider>
