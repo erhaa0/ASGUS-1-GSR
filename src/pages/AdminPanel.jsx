@@ -187,7 +187,7 @@ export default function AdminPanel() {
         setDetectLoading(true);
         try {
             const result = await triggerDetection(selectedDetectZone);
-            showToast(`Detection complete - Risk: ${result.current_risk}`);
+            showToast(`Detection complete — Risk: ${result.current_risk}`);
         } catch (err) {
             showToast('Detection failed');
         } finally {
@@ -305,11 +305,11 @@ export default function AdminPanel() {
                                     <option value="dir">Dir</option>
                                 </select>
                             </div>
-                            <button className="btn-blue" style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            <button className="btn-blue" style={{ width: '100%', marginTop: 8 }}
                                 onClick={handleTriggerDetection} disabled={detectLoading}>
                                 {detectLoading
                                     ? <div className="spinner black" style={{ width: 14, height: 14, borderWidth: 2 }}></div>
-                                    : 'Run Detection ->'}
+                                    : 'Run Detection →'}
                             </button>
                         </div>
 
@@ -337,7 +337,7 @@ export default function AdminPanel() {
                                 <input type="number" className="admin-input" value={sensitivity} min={0.1} max={2.0} step={0.1}
                                     onChange={e => setSensitivity(Number(e.target.value))} />
                             </div>
-                            <button className="btn-blue" style={{ width: '100%', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleUpdateRiskParams}>
+                            <button className="btn-blue" style={{ width: '100%', marginTop: 8 }} onClick={handleUpdateRiskParams}>
                                 Update Parameters →
                             </button>
                         </div>
@@ -533,9 +533,3 @@ export default function AdminPanel() {
         </div>
     );
 }
-
-
-
-
-
-
