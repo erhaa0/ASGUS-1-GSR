@@ -1,32 +1,36 @@
-from sqlalchemy import (create_engine, Column, String, 
-                        Float, Integer, DateTime, Text, Boolean)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-import uuid
 import os
+import uuid
+from dotenv import load_dotenv
 
-# ── Database Setup ────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "lc_ews.db")
-_default_url = f"sqlite:///{DB_PATH}"
-DATABASE_URL = os.environ.get("DATABASE_URL", _default_url)
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-_is_sqlite = DATABASE_URL.startswith("sqlite")
+# ───────── LOAD ENV ─────────
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("❌ DATABASE_URL not set in .env")
+
+# ───────── ENGINE ─────────
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if _is_sqlite else {}
+    pool_pre_ping=True
+    # ⚠️ Removed pool_size, max_overflow for Supabase (serverless friendly)
 )
 
+# ───────── SESSION ─────────
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
 )
 
+# ───────── BASE ─────────
 Base = declarative_base()
 
-# ── Helper ────────────────────────────────────────────
+# ───────── DB DEPENDENCY ─────────
 def get_db():
     db = SessionLocal()
     try:
@@ -34,5 +38,6 @@ def get_db():
     finally:
         db.close()
 
+# ───────── ID GENERATOR ─────────
 def generate_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
