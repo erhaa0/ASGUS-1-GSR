@@ -1,92 +1,78 @@
+import os
 from dotenv import load_dotenv
-load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from database import engine, Base, SessionLocal
-from models.db_models import User, HealthSnapshot, HealthIncident
-from seed import seed
-from routes import auth, zones, detections, observations, reports, users, logs, analytics, health, risk_params
 
-Base.metadata.create_all(bind=engine)
+# Load env
+load_dotenv()
 
-def bootstrap_seed_data():
-    db = SessionLocal()
-    should_seed = False
-    try:
-        should_seed = db.query(User).count() == 0
-    finally:
-        db.close()
-    if should_seed:
-        seed()
-
-bootstrap_seed_data()
-
-# ── Migrate existing databases: add new columns if missing ────────────────────
-from sqlalchemy import text
-with engine.connect() as conn:
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN preferences TEXT"))
-        conn.commit()
-    except Exception:
-        pass  # Column already exists
-
-app = FastAPI(
-    title       = "ASGUS-1 GSR Backend",
-    description = "AI-Powered Locust Early Warning System API",
-    version     = "1.0.0"
+# ───────── IMPORT ROUTES ─────────
+from routes import (
+    auth, zones, detections, observations,
+    reports, users, logs, analytics,
+    health, risk_params
 )
 
+# ───────── APP INIT ─────────
+app = FastAPI(
+    title="ASGUS-1 GSR Backend",
+    description="AI-Powered Locust Early Warning System API",
+    version="1.0.0"
+)
+
+# ───────── CORS ─────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins     = ["*"],
-    allow_credentials = True,
-    allow_methods     = ["*"],
-    allow_headers     = ["*"],
+    allow_origins=["*"],  # ⚠️ Change later in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app.include_router(auth.router,         prefix="/api")
-app.include_router(zones.router,        prefix="/api")
-app.include_router(detections.router,   prefix="/api")
+# ───────── ROUTES ─────────
+app.include_router(auth.router, prefix="/api")
+app.include_router(zones.router, prefix="/api")
+app.include_router(detections.router, prefix="/api")
 app.include_router(observations.router, prefix="/api")
-app.include_router(reports.router,      prefix="/api")
-app.include_router(users.router,        prefix="/api")
-app.include_router(logs.router,         prefix="/api")
-app.include_router(analytics.router,    prefix="/api")
-app.include_router(health.router,       prefix="/api")
-app.include_router(risk_params.router,  prefix="/api")
+app.include_router(reports.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(logs.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api")
+app.include_router(health.router, prefix="/api")
+app.include_router(risk_params.router, prefix="/api")
 
+# ───────── ROOT ─────────
 @app.get("/")
 def root():
     return {
-        "system":  "ASGUS-1 GSR",
-        "status":  "online",
+        "system": "ASGUS-1 GSR",
+        "status": "online",
         "version": "1.0.0",
-        "docs":    "/docs"
+        "docs": "/docs"
     }
 
-# ── This adds the Authorize button to Swagger ─────────
+# ───────── JWT AUTH IN SWAGGER ─────────
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
     schema = get_openapi(
-        title       = app.title,
-        version     = app.version,
-        description = app.description,
-        routes      = app.routes,
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
     )
 
     schema["components"]["securitySchemes"] = {
         "BearerAuth": {
-            "type":         "http",
-            "scheme":       "bearer",
+            "type": "http",
+            "scheme": "bearer",
             "bearerFormat": "JWT",
         }
     }
 
-    # Apply security to all routes except login/register
     for path, methods in schema["paths"].items():
         if path not in ["/api/auth/login", "/api/auth/register", "/"]:
             for method in methods.values():
