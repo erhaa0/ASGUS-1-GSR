@@ -2,8 +2,8 @@
 
 **System:** ASGUS-1 GSR — AI-Powered Locust Early Warning System  
 **Backend:** FastAPI + SQLAlchemy ORM  
-**Current DB:** SQLite (`lc_ews.db`) — file-based, zero config  
-**Azure target:** Azure SQL Database or Azure Database for PostgreSQL
+**Current DB:** Direct PostgreSQL connection via SQLAlchemy
+
 
 ---
 
