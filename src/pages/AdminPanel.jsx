@@ -7,7 +7,7 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { fetchUsers, registerUser, updateUser,
          toggleUserStatus, fetchLogs,
-         triggerDetection, updateRiskParams, fetchHealth } from '../api/api';
+         triggerDetection, updateRiskParams, fetchRiskParams, fetchHealth } from '../api/api';
 import './AnalystDashboard.css';
 import './AdminPanel.css';
 
@@ -78,6 +78,24 @@ export default function AdminPanel() {
     const [riskZoneId, setRiskZoneId]                 = useState('quetta');
     const [minCluster, setMinCluster]                 = useState(2);
     const [sensitivity, setSensitivity]               = useState(1.0);
+    const [riskParamsLoading, setRiskParamsLoading]   = useState(false);
+
+    // Load real DB values whenever zone selector changes
+    useEffect(() => {
+        const load = async () => {
+            setRiskParamsLoading(true);
+            try {
+                const data = await fetchRiskParams(riskZoneId);
+                setMinCluster(data.min_cluster_size ?? 2);
+                setSensitivity(data.sensitivity_weight ?? 1.0);
+            } catch (err) {
+                console.error('fetchRiskParams failed:', err);
+            } finally {
+                setRiskParamsLoading(false);
+            }
+        };
+        load();
+    }, [riskZoneId]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -197,14 +215,17 @@ export default function AdminPanel() {
 
     const handleUpdateRiskParams = async () => {
         try {
-            await updateRiskParams(riskZoneId, {
+            const result = await updateRiskParams(riskZoneId, {
                 min_cluster_size:   minCluster,
                 sensitivity_weight: sensitivity,
                 updated_by:         'admin01'
             });
-            showToast('Risk parameters updated');
+            setMinCluster(result.min_cluster_size ?? minCluster);
+            setSensitivity(result.sensitivity_weight ?? sensitivity);
+            showToast('Saved to Supabase — Zone: ' + riskZoneId);
         } catch (err) {
-            showToast('Update failed');
+            showToast('FAILED: ' + err.message);
+            console.error('handleUpdateRiskParams error:', err);
         }
     };
 
@@ -219,7 +240,7 @@ export default function AdminPanel() {
         { title: 'API Server',          icon: Server,   code: 'online',   color: '#22C55E', up: '99.8%' },
         { title: 'PostgreSQL Database', icon: Database, code: 'online',   color: '#22C55E', up: '99.5%' },
         { title: 'AI Microservice',     icon: Cpu,      code: 'online',   color: '#22C55E', up: '98.2%' },
-        { title: 'Azure App Service',   icon: Cloud,    code: 'degraded', color: '#F59E0B', up: 'High latency detected' },
+        { title: 'Supabase App Service',   icon: Cloud,    code: 'degraded', color: '#F59E0B', up: 'High latency detected' },
         { title: 'PostGIS Extension',   icon: Layers,   code: 'online',   color: '#22C55E', up: '99.9%' }
     ];
 
