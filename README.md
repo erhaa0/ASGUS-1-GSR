@@ -58,7 +58,7 @@ ASGUS-1 GSR is a full-stack intelligent surveillance system designed to detect a
 | Backend | Python, FastAPI, Uvicorn, SQLAlchemy, JWT Auth |
 | AI Microservice | scikit-learn (DBSCAN + Random Forest), NumPy, Pillow |
 | Database | PostgreSQL with PostGIS extension |
-| Cloud | Microsoft Azure (App Service, Blob Storage, Container Instance, Key Vault) |
+| Cloud | Supabase,Vercel,Render |
 | Fonts | Space Grotesk and Space Mono |
 
 ---
@@ -125,7 +125,7 @@ asgus1-gsr/
 - Node.js 18+
 - Python 3.11+
 - PostgreSQL 15+ with PostGIS extension
-- Azure account (for full deployment)
+- Supabase+Vercel and render(for deployment)
 
 ### Frontend
 
@@ -191,13 +191,14 @@ REACT_APP_API_TIMEOUT=30000
 
 ### Backend `.env`
 ```
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/asgus1
-JWT_SECRET=your-secret-key
-JWT_EXPIRE_HOURS=24
-AZURE_STORAGE_CONNECTION_STRING=your-connection-string
-AZURE_STORAGE_CONTAINER=satellite-images
-AI_SERVICE_URL=http://localhost:8001
-```
+
+JWT_SECRET_KEY=asgus_secret_key_2026
+
+NEXT_PUBLIC_SUPABASE_URL=https://viazkdqsckkbrwervpgp.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_0NVTWQMfMK1-D3MLxwmNAg_nbRIP2ug
+
+DATABASE_URL=postgresql://postgres.viazkdqsckkbrwervpgp:<Password>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+
 
 ---
 
