@@ -38,11 +38,12 @@ def update_user(user_id: str, req: UserUpdate,db: Session = Depends(get_db),_:  
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if req.full_name:
+    # FIXED: use "is not None" so empty string updates are also applied
+    if req.full_name is not None:
         user.full_name = req.full_name
-    if req.badge:
+    if req.badge is not None:
         user.badge = req.badge
-    if req.assigned_zone:
+    if req.assigned_zone is not None:
         user.assigned_zone = req.assigned_zone
     db.commit()
     return {"user_id": user_id, "status": "updated"}
@@ -55,6 +56,7 @@ def update_status(user_id: str,db: Session = Depends(get_db),_: object  = Depend
     user.status = "Inactive" if user.status == "Active" else "Active"
     db.commit()
     return {"user_id": user_id, "status": user.status}
+
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -122,10 +124,8 @@ def get_field_officers(db: Session = Depends(get_db), _: object = Depends(get_cu
     ]
 
 # ── User Preferences ──────────────────────────────────────────────────────────
-import json
-
 class PreferencesUpdate(BaseModel):
-    preferences: str  # JSON string
+    preferences: dict  # FIXED: dict maps directly to JSONB — no JSON string needed
 
 @router.get("/users/{user_id}/preferences")
 def get_preferences(
@@ -138,13 +138,8 @@ def get_preferences(
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    prefs = {}
-    if user.preferences:
-        try:
-            prefs = json.loads(user.preferences)
-        except Exception:
-            prefs = {}
-    return {"preferences": prefs}
+    # FIXED: JSONB column already returns a dict — no json.loads() needed
+    return {"preferences": user.preferences or {}}
 
 @router.put("/users/{user_id}/preferences")
 def update_preferences(
@@ -158,6 +153,7 @@ def update_preferences(
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # FIXED: assign dict directly — SQLAlchemy handles JSONB serialization
     user.preferences = req.preferences
     db.commit()
     return {"status": "updated"}
