@@ -111,7 +111,7 @@ def bulk_update(
 def trigger_detection(
     req: TriggerRequest,
     db: Session = Depends(get_db),
-    _: object = Depends(require_admin)
+    current_user = Depends(require_admin)
 ):
     # Get zone
     zone = db.query(Zone).filter(
