@@ -1,48 +1,75 @@
 import joblib
+import json
+import logging
 import numpy as np
 import requests
 from pathlib import Path
 from dbscan_engine import run_dbscan
 
-# ── Load trained model once when file is imported ────
-MODEL_PATH = Path(__file__).resolve().parent / "model.pkl"
+logger = logging.getLogger(__name__)
+
+# ── Paths ─────────────────────────────────────────────
+BASE_DIR     = Path(__file__).resolve().parent
+MODEL_PATH   = BASE_DIR / "model.pkl"
+METRICS_PATH = BASE_DIR / "model_metrics.json"
+
+# ── Load model once at import time ───────────────────
 model = joblib.load(MODEL_PATH)
-print("[OK] Random Forest model loaded")
+logger.info("Random Forest model loaded")
 
-# ─────────────────────────────────────────────────────
+# ── Load real model metrics saved by train.py ────────
+# ✅ FIX: replaces the hardcoded 91.2% with real computed values
+def _load_metrics() -> dict:
+    if not METRICS_PATH.exists():
+        logger.warning(
+            "model_metrics.json not found. "
+            "Re-run train.py to generate real metrics."
+        )
+        return {
+            "accuracy":         None,
+            "precision":        None,
+            "recall":           None,
+            "f1_score":         None,
+            "test_sample_size": None,
+            "note": "Metrics file missing — retrain the model to generate real values."
+        }
+    with open(METRICS_PATH) as f:
+        metrics = json.load(f)
+    logger.info(
+        f"Model metrics loaded | "
+        f"Accuracy: {metrics.get('accuracy', 'N/A')}"
+    )
+    return metrics
+
+MODEL_METRICS = _load_metrics()
+
+
+# ── Weather ───────────────────────────────────────────
 def get_weather(lat: float, lon: float) -> dict:
-    """
-    Fetches real weather data from Open-Meteo API.
-    Free — no API key needed.
-    """
-    url = "https://api.open-meteo.com/v1/forecast"
+    """Fetches real weather from Open-Meteo (no API key needed)."""
+    url    = "https://api.open-meteo.com/v1/forecast"
     params = {
-    "latitude":      lat,
-    "longitude":     lon,
-    "current":       "temperature_2m,wind_speed_10m,relative_humidity_2m",
-    "daily":         "precipitation_sum",
-    "past_days":     7,
-    "forecast_days": 1,
-    "timezone":      "Asia/Karachi"   # ← already there, but add this too
-}
-
+        "latitude":      lat,
+        "longitude":     lon,
+        "current":       "temperature_2m,wind_speed_10m,relative_humidity_2m",
+        "daily":         "precipitation_sum",
+        "past_days":     7,
+        "forecast_days": 1,
+        "timezone":      "Asia/Karachi"
+    }
     try:
-        response = requests.get(url, params=params, timeout=10)
-        data = response.json()
-
-        temperature = data["current"]["temperature_2m"]
-        wind_speed  = data["current"]["wind_speed_10m"]
-        humidity    = data["current"]["relative_humidity_2m"]
-        
-        print(f"Weather time: {data['current']['time']}")
-        # Sum of last 7 days rainfall
+        response      = requests.get(url, params=params, timeout=10)
+        data          = response.json()
+        temperature   = data["current"]["temperature_2m"]
+        wind_speed    = data["current"]["wind_speed_10m"]
+        humidity      = data["current"]["relative_humidity_2m"]
         rainfall_7day = sum(data["daily"]["precipitation_sum"])
 
-        print(f"[OK] Weather fetched | Temp:{temperature} C "
-              f"Wind:{wind_speed}km/h "
-              f"Humidity:{humidity}% "
-              f"Rain7d:{rainfall_7day}mm")
-
+        logger.info(
+            f"Weather fetched | Temp:{temperature}°C "
+            f"Wind:{wind_speed}km/h Humidity:{humidity}% "
+            f"Rain7d:{rainfall_7day}mm"
+        )
         return {
             "temperature":   temperature,
             "wind_speed":    wind_speed,
@@ -50,9 +77,8 @@ def get_weather(lat: float, lon: float) -> dict:
             "rainfall_7day": rainfall_7day,
             "source":        "live"
         }
-
-    except Exception as e:
-        print(f"[WARN] Weather API failed: {e} - using fallback values")
+    except Exception:
+        logger.warning("Weather API failed — using fallback values")
         return {
             "temperature":   38.0,
             "wind_speed":    20.0,
@@ -61,11 +87,10 @@ def get_weather(lat: float, lon: float) -> dict:
             "source":        "fallback"
         }
 
-# ─────────────────────────────────────────────────────
+
+# ── 72hr Prediction ───────────────────────────────────
 def predict_72hr(weather: dict, cluster_size: int) -> dict:
-    """
-    Uses Random Forest to predict 72hr outbreak probability.
-    """
+    """Uses the trained Random Forest to predict 72hr outbreak probability."""
     features = np.array([[
         weather["temperature"],
         weather["wind_speed"],
@@ -74,8 +99,8 @@ def predict_72hr(weather: dict, cluster_size: int) -> dict:
         min(cluster_size * 0.1, 0.8)   # vegetation_index approximation
     ]])
 
-    probability  = model.predict_proba(features)[0][1]  # outbreak probability
-    prediction   = model.predict(features)[0]            # 0 or 1
+    probability = model.predict_proba(features)[0][1]
+    prediction  = model.predict(features)[0]
 
     if probability >= 0.80:
         risk_72hr = "Critical"
@@ -92,54 +117,60 @@ def predict_72hr(weather: dict, cluster_size: int) -> dict:
         "risk_72hr":          risk_72hr
     }
 
-# ─────────────────────────────────────────────────────
-def run_full_pipeline(zone_id: str, sightings: list,
-                      eps: float = 0.5,
-                      min_samples: int = 2) -> dict:
+
+# ── Full Pipeline ─────────────────────────────────────
+def run_full_pipeline(
+    zone_id:     str,
+    sightings:   list,
+    eps:         float = 0.5,
+    min_samples: int   = 2
+) -> dict:
     """
     Full AI pipeline:
       1. DBSCAN  → detect current swarm clusters
       2. Weather → fetch real weather for zone center
       3. RF      → predict 72hr movement risk
-
-    zone_id   : zone identifier string
-    sightings : list of {"lat": float, "lon": float}
     """
-
-    print("\n" + "=" * 50)
-    print(f"LC-EWS FULL PIPELINE - Zone: {zone_id}")
-    print("=" * 50)
+    logger.info(f"Pipeline started | Zone: {zone_id}")
 
     # ── Step 1: DBSCAN ────────────────────────────────
-    print("\nSTEP 1: Running DBSCAN...")
-    dbscan_result = run_dbscan(sightings, eps=eps,
-                               min_samples=min_samples)
+    logger.info("Step 1: Running DBSCAN...")
+    dbscan_result = run_dbscan(sightings, eps=eps, min_samples=min_samples)
 
     # ── Step 2: Weather ───────────────────────────────
-    print("\nSTEP 2: Fetching weather...")
+    logger.info("Step 2: Fetching weather...")
 
-    # Use center of all sightings for weather lookup
+    # Normalise sighting key names — accept both "lat" and "latitude"
+    def _lat(s): return s.get("latitude") or s.get("lat")
+    def _lon(s): return s.get("longitude") or s.get("lon")
+
     if sightings:
-        avg_lat = np.mean([s["lat"] for s in sightings])
-        avg_lon = np.mean([s["lon"] for s in sightings])
+        avg_lat = np.mean([float(_lat(s)) for s in sightings])
+        avg_lon = np.mean([float(_lon(s)) for s in sightings])
     else:
-        avg_lat, avg_lon = 30.0, 67.0   # Default Pakistan center
+        avg_lat, avg_lon = 30.0, 67.0   # Pakistan centre fallback
 
     weather = get_weather(avg_lat, avg_lon)
 
-    # ── Step 3: Random Forest 72hr Prediction ─────────
-    print("\nSTEP 3: Running 72hr prediction...")
+    # ── Step 3: RF 72hr prediction ────────────────────
+    logger.info("Step 3: Running 72hr prediction...")
     largest_cluster = max(
         [c["size"] for c in dbscan_result["clusters"]],
         default=0
     )
     prediction = predict_72hr(weather, largest_cluster)
 
-    # ── Final Result ──────────────────────────────────
-    result = {
-        "zone_id":          zone_id,
+    logger.info(
+        f"Pipeline complete | "
+        f"Current: {dbscan_result['risk_level']} | "
+        f"72hr: {prediction['risk_72hr']} | "
+        f"Prob: {prediction['probability'] * 100:.1f}%"
+    )
 
-        # DBSCAN results
+    return {
+        "zone_id":      zone_id,
+
+        # DBSCAN
         "current_swarm":    dbscan_result["swarm_found"],
         "current_risk":     dbscan_result["risk_level"],
         "current_score":    dbscan_result["risk_score"],
@@ -149,18 +180,11 @@ def run_full_pipeline(zone_id: str, sightings: list,
         # Weather
         "weather":          weather,
 
-        # RF 72hr prediction
+        # RF 72hr
         "outbreak_72hr":    prediction["outbreak_predicted"],
         "risk_72hr":        prediction["risk_72hr"],
         "probability_72hr": prediction["probability"],
+
+        # ✅ FIX: real model metrics, not a hardcoded number
+        "model_metrics":    MODEL_METRICS,
     }
-
-    print("\n" + "=" * 50)
-    print("PIPELINE COMPLETE")
-    print(f"  Current Risk  : {result['current_risk']}")
-    print(f"  72hr Risk     : {result['risk_72hr']}")
-    print(f"  Probability   : {result['probability_72hr'] * 100:.1f}%")
-    print(f"  Swarm Found   : {result['current_swarm']}")
-    print("=" * 50)
-
-    return result
