@@ -5,7 +5,7 @@ from models.db_models import User, ActivityLog
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 import os
 from auth_middleware import require_admin, SECRET_KEY
 
@@ -13,17 +13,23 @@ router      = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM   = "HS256"
 
-# ── Role mapping (backend → frontend format) ──────────
+# ✅ FIX: only these roles are allowed — nothing else accepted
+VALID_ROLES = {"field_officer", "analyst", "admin"}
+
+# ✅ FIX: minimum password length
+MIN_PASSWORD_LENGTH = 8
+
 ROLE_MAP = {
     "field_officer": "field-officer",
     "analyst":       "analyst",
     "admin":         "admin"
 }
 
-# ── Schemas ───────────────────────────────────────────
+
 class LoginRequest(BaseModel):
     email:    str
     password: str
+
 
 class RegisterRequest(BaseModel):
     full_name:     str
@@ -33,11 +39,44 @@ class RegisterRequest(BaseModel):
     badge:         str | None = None
     assigned_zone: str | None = None
 
-# ── Helpers ───────────────────────────────────────────
+    # ✅ FIX: validate role at the schema level — rejects before the DB is touched
+    @field_validator("role")
+    @classmethod
+    def role_must_be_valid(cls, v):
+        if v not in VALID_ROLES:
+            raise ValueError(
+                f"Invalid role '{v}'. "
+                f"Must be one of: {sorted(VALID_ROLES)}"
+            )
+        return v
+
+    # ✅ FIX: blank or short passwords rejected
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Password cannot be blank")
+        if len(v) < MIN_PASSWORD_LENGTH:
+            raise ValueError(
+                f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+            )
+        return v
+
+    # ✅ FIX: basic email sanity check
+    @field_validator("email")
+    @classmethod
+    def email_must_be_valid(cls, v):
+        v = v.strip().lower()
+        if "@" not in v or "." not in v.split("@")[-1]:
+            raise ValueError("Invalid email address")
+        return v
+
+
 def create_token(data: dict):
     expire = datetime.utcnow() + timedelta(hours=24)
     data.update({"exp": expire})
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
 
 # ── Login ─────────────────────────────────────────────
 @router.post("/auth/login")
@@ -56,10 +95,8 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             detail="Account is deactivated"
         )
 
-    # Update last login
     user.last_login = datetime.now(timezone.utc)
 
-    # Log action
     db.add(ActivityLog(
         log_id      = generate_id("log"),
         user_id     = user.user_id,
@@ -78,11 +115,12 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type":   "bearer",
-        "role":         ROLE_MAP.get(user.role, user.role),  # ← mapped
+        "role":         ROLE_MAP.get(user.role, user.role),
         "user_id":      user.user_id,
         "name":         user.full_name,
         "badge":        user.badge
     }
+
 
 # ── Register (Admin only) ─────────────────────────────
 @router.post("/auth/register")
@@ -91,13 +129,16 @@ def register(
     db:  Session = Depends(get_db),
     _:   object  = Depends(require_admin)
 ):
+    # ✅ Pydantic validators above already rejected bad roles and weak passwords
+    # before we get here — no extra checks needed in the function body
+
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already exists")
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
         user_id       = generate_id("usr"),
-        full_name     = req.full_name,
+        full_name     = req.full_name.strip(),
         email         = req.email,
         password      = pwd_context.hash(req.password),
         role          = req.role,
