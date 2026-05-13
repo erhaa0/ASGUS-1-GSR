@@ -1,4 +1,4 @@
-﻿from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -7,7 +7,9 @@ import os
 from database import get_db
 from models.db_models import User
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "asgus_secret_key_2026")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is not set!")
 ALGORITHM = "HS256"
 bearer = HTTPBearer()
 
