@@ -1,208 +1,245 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db, generate_id
-from models.db_models import Detection, Zone, WeatherSnapshot, ActivityLog, RiskParameter  # ✅ ADDED
-from auth_middleware import get_current_user, require_admin
+from models.db_models import Detection, Zone, WeatherSnapshot, ActivityLog, RiskParameter
+from auth_middleware import get_current_user, require_admin  
 from datetime import datetime, timezone
-from pydantic import BaseModel
-import sys, os
+from pydantic import BaseModel, field_validator
+import sys, os, uuid, logging
+
+from utils.emailer import send_zone_critical_alert
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'ai'))
 from predict import run_full_pipeline
 
 router = APIRouter()
+logger = logging.getLogger(__name__) 
+
 
 class StatusUpdate(BaseModel):
     status: str
 
+
 class BulkUpdate(BaseModel):
     event_ids: list[str]
-    status: str
+    status:    str
+
 
 class TriggerRequest(BaseModel):
-    zone_id: str
-    sightings: list[dict]
-    eps: float = 0.5          # (kept for now, but no longer used)
-    min_samples: int = 2      # (kept for now, but no longer used)
+    zone_id:     str
+    sightings:   list[dict]
+    eps:         float = 0.5
+    min_samples: int   = 2
 
 
-# ── Get Detections ────────────────────────────────────
+    @field_validator("sightings")
+    @classmethod
+    def validate_sightings(cls, v):
+        if not v:
+            raise ValueError("sightings list cannot be empty")
+        for i, s in enumerate(v):
+            lat = s.get("latitude") or s.get("lat")
+            lon = s.get("longitude") or s.get("lon")
+            if lat is None or lon is None:
+                raise ValueError(f"Sighting #{i+1} is missing latitude or longitude")
+            try:
+                lat, lon = float(lat), float(lon)
+            except (TypeError, ValueError):
+                raise ValueError(f"Sighting #{i+1} has non-numeric coordinates")
+            if not (-90 <= lat <= 90):
+                raise ValueError(f"Sighting #{i+1} has invalid latitude: {lat}")
+            if not (-180 <= lon <= 180):
+                raise ValueError(f"Sighting #{i+1} has invalid longitude: {lon}")
+        return v
+
 @router.get("/detections")
 def get_detections(
     zone_id: str | None = Query(None),
-    limit: int = Query(20),
+    limit:   int        = Query(20, le=200),  
     db: Session = Depends(get_db),
-    _: object = Depends(get_current_user)
+    _:  object  = Depends(get_current_user)
 ):
-    query = db.query(Detection).order_by(
-        Detection.detected_at.desc()
-    )
+    query = db.query(Detection).order_by(Detection.detected_at.desc())
     if zone_id:
         query = query.filter(Detection.zone_id == zone_id)
 
-    detections = query.limit(limit).all()
     return [
         {
-            "event_id": d.event_id,
-            "alert_id": d.alert_id,
-            "zone_id": d.zone_id,
-            "zone_name": d.zone_name,
-            "province": d.province,
-            "risk_level": d.risk_level,
-            "event_type": d.event_type,
-            "confidence": d.confidence,
-            "risk_score": d.risk_score,
-            "velocity": d.velocity,
-            "dbscan_clusters": d.dbscan_clusters,
-            "description": d.description,
-            "status": d.status,
-            "detected_at": d.detected_at,
+            "event_id":       d.event_id,
+            "alert_id":       d.alert_id,
+            "zone_id":        d.zone_id,
+            "zone_name":      d.zone_name,
+            "province":       d.province,
+            "risk_level":     d.risk_level,
+            "event_type":     d.event_type,
+            "confidence":     d.confidence,
+            "risk_score":     d.risk_score,
+            "velocity":       d.velocity,
+            "dbscan_clusters":d.dbscan_clusters,
+            "description":    d.description,
+            "status":         d.status,
+            "detected_at":    d.detected_at,
         }
-        for d in detections
+        for d in query.limit(limit).all()
     ]
 
 
-# ── Update Detection Status ───────────────────────────
+
 @router.patch("/detections/{event_id}")
 def update_detection(
-    event_id: str,
-    req: StatusUpdate,
-    db: Session = Depends(get_db),
-    _: object = Depends(get_current_user)
+    event_id:     str,
+    req:          StatusUpdate,
+    db:           Session = Depends(get_db),
+    current_user = Depends(require_admin) 
 ):
-    detection = db.query(Detection).filter(
-        Detection.event_id == event_id
-    ).first()
-
+    detection = db.query(Detection).filter(Detection.event_id == event_id).first()
     if not detection:
         raise HTTPException(status_code=404, detail="Detection not found")
 
+    old_status       = detection.status
     detection.status = req.status
+
+  
+    db.add(ActivityLog(
+        log_id      = generate_id("log"),
+        user_id     = current_user.user_id,
+        action_type = "DETECTION_STATUS_UPDATE",
+        detail      = f"Detection {event_id} changed from '{old_status}' to '{req.status}'",
+        timestamp   = datetime.now(timezone.utc)
+    ))
     db.commit()
 
     return {"event_id": event_id, "status": req.status}
 
 
-# ── Bulk Update ───────────────────────────────────────
+
 @router.post("/detections/bulk")
 def bulk_update(
-    req: BulkUpdate,
-    db: Session = Depends(get_db),
-    _: object = Depends(get_current_user)
+    req:          BulkUpdate,
+    db:           Session = Depends(get_db),
+    current_user = Depends(require_admin) 
 ):
     updated = 0
-
     for event_id in req.event_ids:
-        d = db.query(Detection).filter(
-            Detection.event_id == event_id
-        ).first()
-
+        d = db.query(Detection).filter(Detection.event_id == event_id).first()
         if d:
             d.status = req.status
             updated += 1
 
+    db.add(ActivityLog(
+        log_id      = generate_id("log"),
+        user_id     = current_user.user_id,
+        action_type = "BULK_DETECTION_UPDATE",
+        detail      = f"Bulk updated {updated} detection(s) to '{req.status}'",
+        timestamp   = datetime.now(timezone.utc)
+    ))
     db.commit()
 
     return {"updated": updated, "status": req.status}
 
 
-# ── Trigger AI Detection ──────────────────────────────
+
 @router.post("/detections/trigger")
 def trigger_detection(
-    req: TriggerRequest,
-    db: Session = Depends(get_db),
+    req:          TriggerRequest,
+    db:           Session = Depends(get_db),
     current_user = Depends(require_admin)
 ):
-    # Get zone
-    zone = db.query(Zone).filter(
-        Zone.zone_id == req.zone_id
-    ).first()
-
+    zone = db.query(Zone).filter(Zone.zone_id == req.zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # 🔥 NEW: Fetch risk parameters from DB
-    risk = db.query(RiskParameter).filter(
-        RiskParameter.zone_id == req.zone_id
-    ).first()
-
+    risk = db.query(RiskParameter).filter(RiskParameter.zone_id == req.zone_id).first()
     if not risk:
-        raise HTTPException(
-            status_code=404,
-            detail="Risk parameters not found for this zone"
+        raise HTTPException(status_code=404, detail="Risk parameters not found for this zone")
+
+  
+    try:
+        result = run_full_pipeline(
+            zone_id     = req.zone_id,
+            sightings   = req.sightings,
+            eps         = risk.sensitivity_weight,
+            min_samples = risk.min_cluster_size
         )
 
-    # 🔥 UPDATED: Run AI pipeline using DB values
-    result = run_full_pipeline(
-        zone_id=req.zone_id,
-        sightings=req.sightings,
-        eps=risk.sensitivity_weight,       # ✅ FROM DB
-        min_samples=risk.min_cluster_size  # ✅ FROM DB
-    )
+        current_risk = result["current_risk"]
+        risk_score   = result["current_score"]
+        confidence   = result["current_score"]
 
-    # Update zone risk level
-    zone.risk_level = result["current_risk"]
-    zone.confidence = result["current_score"]
-    zone.last_detected = datetime.now(timezone.utc)
+        zone.risk_level    = current_risk
+        zone.confidence    = confidence
+        zone.last_detected = datetime.now(timezone.utc)
 
-    # Save weather snapshot
-    weather = result["weather"]
-    db.add(WeatherSnapshot(
-        snapshot_id=generate_id("snap"),
-        zone_id=req.zone_id,
-        temperature=weather["temperature"],
-        wind_speed=weather["wind_speed"],
-        humidity=weather["humidity"],
-        rainfall_7day=weather["rainfall_7day"],
-        source=weather["source"],
-        fetched_at=datetime.now(timezone.utc)
-    ))
+        if current_risk == "Critical":
+            send_zone_critical_alert(
+                db         = db,
+                zone_name  = zone.zone_name,
+                province   = zone.province,
+                risk_score = risk_score,
+                confidence = confidence,
+            )
 
-    # Save detection event
-    alert_num = db.query(Detection).count() + 1
-    alert_id = f"ALT-{alert_num:04d}"
-    event_type = "Locust Swarm" if result["current_swarm"] else "Monitoring"
+        weather = result["weather"]
+        db.add(WeatherSnapshot(
+            snapshot_id  = generate_id("snap"),
+            zone_id      = req.zone_id,
+            temperature  = weather["temperature"],
+            wind_speed   = weather["wind_speed"],
+            humidity     = weather["humidity"],
+            rainfall_7day= weather["rainfall_7day"],
+            source       = weather["source"],
+            fetched_at   = datetime.now(timezone.utc)
+        ))
 
-    detection = Detection(
-        event_id=generate_id("evt"),
-        alert_id=alert_id,
-        zone_id=req.zone_id,
-        zone_name=zone.zone_name,
-        province=zone.province,
-        risk_level=result["current_risk"],
-        event_type=event_type,
-        confidence=result["current_score"],
-        risk_score=result["current_score"],
-        dbscan_clusters=len(result["clusters"]),
-        description=(
-            f"DBSCAN detected {len(result['clusters'])} cluster(s). "
-            f"72hr forecast: {result['risk_72hr']} "
-            f"({result['probability_72hr']*100:.1f}%)"
-        ),
-        status="Active",
-        detected_at=datetime.now(timezone.utc)
-    )
+        alert_id   = f"ALT-{uuid.uuid4().hex[:8].upper()}"
+        event_type = "Locust Swarm" if result["current_swarm"] else "Monitoring"
 
-    db.add(detection)
+        detection = Detection(
+            event_id       = generate_id("evt"),
+            alert_id       = alert_id,
+            zone_id        = req.zone_id,
+            zone_name      = zone.zone_name,
+            province       = zone.province,
+            risk_level     = current_risk,
+            event_type     = event_type,
+            confidence     = confidence,
+            risk_score     = risk_score,
+            dbscan_clusters= len(result["clusters"]),
+            description    = (
+                f"DBSCAN detected {len(result['clusters'])} cluster(s). "
+                f"72hr forecast: {result['risk_72hr']} "
+                f"({result['probability_72hr'] * 100:.1f}%)"
+            ),
+            status         = "Active",
+            detected_at    = datetime.now(timezone.utc)
+        )
+        db.add(detection)
 
-    # Log action
-    db.add(ActivityLog(
-        log_id=generate_id("log"),
-         user_id=current_user.user_id,
-        action_type="DETECTION_TRIGGERED",
-        detail=f"Zone {zone.zone_name} — Risk: {result['current_risk']}",
-        timestamp=datetime.now(timezone.utc)
-    ))
+        db.add(ActivityLog(
+            log_id      = generate_id("log"),
+            user_id     = current_user.user_id,
+            action_type = "DETECTION_TRIGGERED",
+            detail      = f"Zone {zone.zone_name} — Risk: {current_risk}",
+            timestamp   = datetime.now(timezone.utc)
+        ))
 
-    db.commit()
+        db.commit()  
+
+    except ValueError as e:
+        
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception:
+        db.rollback()  
+        logger.exception("[detections] trigger pipeline failed")
+        raise HTTPException(status_code=500, detail="Detection pipeline failed. No data was saved.")
 
     return {
-        "message": "Detection job complete",
-        "alert_id": alert_id,
-        "zone": zone.zone_name,
-        "current_risk": result["current_risk"],
-        "risk_72hr": result["risk_72hr"],
+        "message":     "Detection job complete",
+        "alert_id":    alert_id,
+        "zone":        zone.zone_name,
+        "current_risk":current_risk,
+        "risk_72hr":   result["risk_72hr"],
         "probability": result["probability_72hr"],
-        "clusters": len(result["clusters"]),
-        "weather": result["weather"]
+        "clusters":    len(result["clusters"]),
+        "weather":     result["weather"]
     }
