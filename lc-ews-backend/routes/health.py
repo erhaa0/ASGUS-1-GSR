@@ -3,12 +3,23 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
 from models.db_models import HealthSnapshot, HealthIncident
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from auth_middleware import get_current_user  
 import time
+import os
+import logging
+import joblib
+import numpy as np
+
+from utils.emailer import send_health_incident_alert
 
 router = APIRouter()
 
-# ── Try to import psutil for real metrics ─────────────────────────────────────
+logger = logging.getLogger(__name__)
+
+_last_alerted: dict[str, datetime] = {}
+ALERT_COOLDOWN_MINUTES = 60
+
 try:
     import psutil as _psutil
     _HAS_PSUTIL = True
@@ -32,112 +43,218 @@ def _measure_db_ms(db: Session) -> int:
         db.execute(text("SELECT 1"))
         return max(1, round((time.monotonic() - t0) * 1000))
     except Exception:
-        return 5
+        db.rollback()
+        return 9999
+
+
+def _check_postgis_ms(db: Session) -> int:
+    try:
+        t0 = time.monotonic()
+        db.execute(text("SELECT PostGIS_Version()"))
+        return max(1, round((time.monotonic() - t0) * 1000))
+    except Exception:
+        db.rollback()
+        return 9999
 
 
 def _check_ai_ms() -> int:
-    import os, time as t
-    t0 = t.monotonic()
-    os.path.exists("ai/model.pkl")
-    return max(50, round((t.monotonic() - t0) * 1000) + 120)
+    try:
+        base_dir   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_path = os.path.join(base_dir, "ai", "model.pkl")
+        if not os.path.exists(model_path):
+            return 9999
+        t0    = time.monotonic()
+        model = joblib.load(model_path)
+        dummy = np.zeros((1, model.n_features_in_))
+        _     = model.predict(dummy)
+        return max(10, round((time.monotonic() - t0) * 1000))
+    except Exception as e:
+        logger.error("[health] AI check failed")  
+        return 9999
 
 
-def _check_ai_status() -> tuple[str, int]:
-    import os
-    model_exists = os.path.exists("ai/model.pkl") or os.path.exists("ai/train.py")
-    status = "Online" if model_exists else "Degraded"
-    return status, _check_ai_ms()
+def _check_ai_status():
+    ms = _check_ai_ms()
+    return ("Online" if ms < 9999 else "Degraded"), ms
 
 
-# Thresholds (ms) above which an incident is recorded
+def _check_api_ms() -> int:
+    import json
+    payload = {"service": "api", "ping": True}
+    t0 = time.monotonic()
+    _  = json.loads(json.dumps(payload))
+    return max(5, round((time.monotonic() - t0) * 1000))
+
+
+def _check_supabase_rest_ms() -> int:
+    import requests
+    url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "")
+    if not url or not key:
+        return 9999
+    try:
+        t0   = time.monotonic()
+        resp = requests.get(
+            f"{url}/rest/v1/zones",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            params={"limit": 1},
+            timeout=5,
+        )
+        ms = round((time.monotonic() - t0) * 1000)
+        return ms if resp.status_code in (200, 206) else 9999
+    except Exception:
+        logger.error("[health] Supabase REST check failed")
+        return 9999
+
+
 _THRESHOLDS = {
     "API Server":        200,
-    "SQLite DB":         100,
-    "AI Microservice":   2000,
-    "Azure App Service": 1000,
-    "PostGIS Extension": 200,
+    "Supabase":          600,
+    "AI Microservice":   3000,
+    "Supabase REST API": 1000,
+    "PostGIS Extension": 1000,
 }
 
 
 def _maybe_record_incident(db: Session, name: str, response_ms: int, status: str):
-    if status != "Online" or response_ms > _THRESHOLDS.get(name, 500):
-        severity = "High" if (status != "Online" or response_ms > _THRESHOLDS.get(name, 500) * 2) else "Medium"
-        desc = (
-            f"{name} is {status}" if status != "Online"
-            else f"{name} response time elevated: {response_ms}ms"
-        )
-        incident = HealthIncident(
-            timestamp   = datetime.now(timezone.utc),
-            service     = name,
-            description = desc,
-            severity    = severity,
-            status      = "Investigating",
-        )
-        db.add(incident)
-        db.commit()
+    try:
+        if status != "Online" or response_ms > _THRESHOLDS.get(name, 500):
+            severity = (
+                "High"
+                if status != "Online" or response_ms > _THRESHOLDS.get(name, 500) * 2
+                else "Medium"
+            )
+            desc = (
+                f"{name} is {status}"
+                if status != "Online"
+                else f"{name} response time elevated: {response_ms}ms"
+            )
+            incident = HealthIncident(
+                timestamp   = datetime.now(timezone.utc),
+                service     = name,
+                description = desc,
+                severity    = severity,
+                status      = "Investigating",
+            )
+            db.add(incident)
+
+            if severity == "High":
+                now_time       = datetime.now(timezone.utc)
+                last           = _last_alerted.get(name)
+                cooldown_passed = (
+                    last is None or
+                    (now_time - last).total_seconds() > ALERT_COOLDOWN_MINUTES * 60
+                )
+                if cooldown_passed:
+                    _last_alerted[name] = now_time
+                    try:
+                        send_health_incident_alert(name, desc, severity)
+                    except Exception:
+                        logger.error(f"[health] email alert failed for {name}")
+    except Exception:
+        logger.error("[health] incident recording failed")
 
 
 @router.get("/health")
-def get_health(db: Session = Depends(get_db)):
-    now = datetime.now(timezone.utc)
-    db_ms = _measure_db_ms(db)
-    ai_status, ai_ms = _check_ai_status()
+def get_health(
+    db: Session = Depends(get_db),
+    _:  object  = Depends(get_current_user)
+):
+    try:
+        now        = datetime.now(timezone.utc)
+        db_ms      = _measure_db_ms(db)
+        postgis_ms = _check_postgis_ms(db)
+        ai_status, ai_ms = _check_ai_status()
+        api_ms     = _check_api_ms()
+        rest_ms    = _check_supabase_rest_ms()
 
-    service_data = [
-        {"name": "API Server",         "status": "Online",   "uptime": 99.9, "response_ms": 42,                  "incidents": 0},
-        {"name": "SQLite DB",          "status": "Online",   "uptime": 99.9, "response_ms": db_ms,               "incidents": 0},
-        {"name": "AI Microservice",    "status": ai_status,  "uptime": 98.5, "response_ms": ai_ms,               "incidents": 0},
-        {"name": "Azure App Service",  "status": "Online",   "uptime": 99.1, "response_ms": 310,                 "incidents": 0},
-        {"name": "PostGIS Extension",  "status": "Online",   "uptime": 99.9, "response_ms": max(1, db_ms // 2),  "incidents": 0},
-    ]
+        snap = HealthSnapshot(
+            timestamp  = now,
+            api_ms     = api_ms,
+            db_ms      = db_ms,
+            ai_ms      = ai_ms,
+            azure_ms   = rest_ms,
+            postgis_ms = postgis_ms,
+        )
+        db.add(snap)
+        db.flush()
 
-    # Check each service and record incidents if needed
-    for svc in service_data:
-        _maybe_record_incident(db, svc["name"], svc["response_ms"], svc["status"])
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        snaps       = db.query(HealthSnapshot).filter(HealthSnapshot.timestamp >= today_start).all()
+        total       = len(snaps)
 
-    services = [
-        {**s, "last_checked": now} for s in service_data
-    ]
+        def uptime_pct(values):
+            if total == 0:
+                return None
+            online = sum(1 for v in values if (v or 9999) < 9999)
+            return round((online / total) * 100, 1)
 
-    # Persist snapshot to DB
-    snap = HealthSnapshot(
-        timestamp  = now,
-        api_ms     = 42,
-        db_ms      = db_ms,
-        ai_ms      = ai_ms,
-        azure_ms   = 310,
-        postgis_ms = max(1, db_ms // 2),
-    )
-    db.add(snap)
-    db.commit()
+        inc_rows  = db.query(HealthIncident).filter(HealthIncident.timestamp >= today_start).all()
+        inc_today = {}
+        for r in inc_rows:
+            inc_today[r.service] = inc_today.get(r.service, 0) + 1
 
-    # Return last 7 snapshots from DB
-    rows = (
-        db.query(HealthSnapshot)
-        .order_by(HealthSnapshot.id.desc())
-        .limit(7)
-        .all()
-    )
-    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    history = [
-        {
-            "day":       day_names[r.timestamp.weekday()],
-            "time":      r.timestamp.strftime("%H:%M"),
-            "api":       r.api_ms,
-            "db":        r.db_ms,
-            "ai":        r.ai_ms,
-            "azure":     r.azure_ms,
-            "postgis":   r.postgis_ms,
-            "timestamp": r.timestamp,
-        }
-        for r in reversed(rows)
-    ]
+        last_checked = now.isoformat()
+        service_data = [
+            {
+                "name":        "API Server",
+                "status":      "Online",
+                "response_ms": api_ms,
+                "uptime":      uptime_pct([s.api_ms for s in snaps]),
+                "last_checked":last_checked,
+                "incidents":   inc_today.get("API Server", 0),
+            },
+            {
+                "name":        "Supabase",
+                "status":      "Online" if db_ms < 9999 else "Degraded",
+                "response_ms": db_ms,
+                "uptime":      uptime_pct([s.db_ms for s in snaps]),
+                "last_checked":last_checked,
+                "incidents":   inc_today.get("Supabase", 0),
+            },
+            {
+                "name":        "AI Microservice",
+                "status":      ai_status,
+                "response_ms": ai_ms,
+                "uptime":      uptime_pct([s.ai_ms for s in snaps]),
+                "last_checked":last_checked,
+                "incidents":   inc_today.get("AI Microservice", 0),
+            },
+            {
+                "name":        "Supabase REST API",
+                "status":      "Online" if rest_ms < 9999 else "Degraded",
+                "response_ms": rest_ms,
+                "uptime":      uptime_pct([s.azure_ms for s in snaps]),
+                "last_checked":last_checked,
+                "incidents":   inc_today.get("Supabase REST API", 0),
+            },
+            {
+                "name":        "PostGIS Extension",
+                "status":      "Online" if postgis_ms < 9999 else "Degraded",
+                "response_ms": postgis_ms,
+                "uptime":      uptime_pct([s.postgis_ms for s in snaps]),
+                "last_checked":last_checked,
+                "incidents":   inc_today.get("PostGIS Extension", 0),
+            },
+        ]
 
-    return {"services": services, "history": history}
+        for svc in service_data:
+            _maybe_record_incident(db, svc["name"], svc["response_ms"], svc["status"])
+
+        db.commit()
+        return {"services": service_data, "history": []}
+
+    except Exception:
+        db.rollback()
+        logger.exception("[health] transaction failed") 
+        return {"error": "health check failed"}          
 
 
 @router.get("/health/incidents")
-def get_incidents(db: Session = Depends(get_db)):
+def get_incidents(
+    db: Session = Depends(get_db),
+    _:  object  = Depends(get_current_user)
+):
     rows = (
         db.query(HealthIncident)
         .order_by(HealthIncident.id.desc())
@@ -148,7 +265,7 @@ def get_incidents(db: Session = Depends(get_db)):
         "incidents": [
             {
                 "id":          r.id,
-                "time":        r.timestamp.strftime("%H:%M") if r.timestamp else "--:--",
+                "time":        r.timestamp.strftime("%d %b %H:%M") if r.timestamp else "--",
                 "service":     r.service,
                 "description": r.description,
                 "severity":    r.severity,
@@ -158,7 +275,6 @@ def get_incidents(db: Session = Depends(get_db)):
         ]
     }
 
-
 @router.get("/health/resources")
-def get_resources():
+def get_resources(_: object = Depends(get_current_user)):
     return _get_resources()
