@@ -1,0 +1,132 @@
+/* ─── Zone Explorer Specific Styles ────────────────────────────────── */
+
+/* View Toggle Buttons */
+.ze-view-btn {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    color: #666;
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ze-view-btn:hover {
+    border-color: #333;
+    color: #F5F5F5;
+}
+
+.ze-view-btn.active {
+    border-color: #F59E0B;
+    color: #F59E0B;
+    background: rgba(245, 158, 11, 0.08);
+}
+
+/* Grid Layout */
+.ze-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 1400px) {
+    .ze-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 1000px) {
+    .ze-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Zone Card */
+.ze-card {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    border-left-width: 3px;
+    /* Color set inline via React */
+    border-radius: 8px;
+    padding: 20px;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+}
+
+.ze-card:hover {
+    transform: translateY(-2px);
+    border-color: #F59E0B;
+    border-left-color: #F59E0B !important;
+    background: rgba(245, 158, 11, 0.03);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* List View Row Hover Override */
+.ze-row {
+    transition: background 0.15s;
+    cursor: pointer;
+}
+
+.ze-row:hover {
+    background: #141414 !important;
+}
+
+/* ─── Layout Classes ─── */
+.ze-filters {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    border-radius: 8px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ze-summary {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 12px;
+    color: #666;
+}
+
+.ze-table-container {
+    background: #0D0D0D;
+    border: 1px solid #1E1E1E;
+    border-radius: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+    .ze-summary {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .ze-summary > div {
+        width: 100%;
+    }
+
+    .ze-summary > div[style*="width: 1"] {
+        display: none; /* Hide the vertical dividers */
+    }
+
+    .ze-filters > div:first-child {
+        width: 100% !important; /* Make search bar full width */
+    }
+    
+    .ze-filters select {
+        flex: 1 1 40%; /* Inputs take half width */
+    }
+}

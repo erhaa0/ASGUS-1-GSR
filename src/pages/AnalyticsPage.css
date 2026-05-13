@@ -1,0 +1,63 @@
+/* ─── Analytics Page Styles ─────────────────────────────────────────── */
+
+/* Date range pill buttons */
+.an-range-pill {
+    background: #0D0D0D;
+    border: 1px solid #2A2A2A;
+    color: #666;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.an-range-pill:hover {
+    border-color: #F59E0B;
+    color: #F59E0B;
+}
+
+.an-range-pill.active {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: #F59E0B;
+    color: #F59E0B;
+    font-weight: 700;
+}
+
+/* ─── Grid Definitions ─── */
+.an-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.an-chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.an-chart-grid-alt {
+    display: grid;
+    grid-template-columns: 55fr 45fr;
+    gap: 20px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1024px) {
+    .an-kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .an-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .an-chart-grid,
+    .an-chart-grid-alt {
+        grid-template-columns: 1fr;
+    }
+}

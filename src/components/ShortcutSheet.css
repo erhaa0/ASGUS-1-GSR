@@ -1,0 +1,205 @@
+/* ─── Shortcut Sheet Overlay ─────────────────────────────────────────────── */
+
+.shortcut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ss-fade-in 0.15s ease;
+}
+
+@keyframes ss-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.shortcut-panel {
+  width: 580px;
+  max-width: 95vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #0F0F0F;
+  border: 1px solid #2A2A2A;
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(245, 158, 11, 0.08);
+  animation: ss-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ss-slide-up {
+  from { transform: translateY(16px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+/* Header */
+.shortcut-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #1E1E1E;
+}
+
+.shortcut-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shortcut-header-icon {
+  width: 36px;
+  height: 36px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F59E0B;
+  flex-shrink: 0;
+}
+
+.shortcut-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #F5F5F5;
+  letter-spacing: 0.01em;
+}
+
+.shortcut-subtitle {
+  font-size: 11px;
+  color: #555;
+  margin-top: 2px;
+  font-family: 'Space Mono', monospace;
+}
+
+.shortcut-close-btn {
+  background: none;
+  border: 1px solid #2A2A2A;
+  color: #666;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.shortcut-close-btn:hover {
+  border-color: #F59E0B;
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+/* Body */
+.shortcut-body {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Section */
+.shortcut-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #444;
+  text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+  margin-bottom: 10px;
+}
+
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-radius: 7px;
+  background: #0D0D0D;
+  border: 1px solid #1A1A1A;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.shortcut-row:hover {
+  background: #111;
+  border-color: #2A2A2A;
+}
+
+.shortcut-desc {
+  font-size: 13px;
+  color: #AAA;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* kbd styling */
+.skey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 7px;
+  background: #1A1A1A;
+  border: 1px solid #333;
+  border-bottom: 2px solid #333;
+  border-radius: 5px;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #CCC;
+  letter-spacing: 0;
+  line-height: 1;
+  box-shadow: 0 1px 0 0 #000;
+}
+
+.skey-amber {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+  color: #F59E0B;
+}
+
+.skey-sep {
+  font-size: 11px;
+  color: #444;
+  font-family: 'Space Mono', monospace;
+}
+
+/* Footer hint */
+.shortcut-footer {
+  padding: 12px 24px;
+  border-top: 1px solid #1A1A1A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.shortcut-footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #444;
+  font-family: 'Space Mono', monospace;
+}

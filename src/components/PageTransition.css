@@ -1,0 +1,23 @@
+/* ─── Page Transition ──────────────────────────────────────────────────────── */
+
+/**
+ * Applied to the wrapper div that gets a new `key` on every route change.
+ * React unmounts + remounts the div, triggering this animation each time.
+ * The existing <Routes> and all page components are completely unchanged.
+ */
+.page-transition {
+  animation: page-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* fill-both ensures opacity:0 holds before the animation starts */
+  will-change: opacity, transform;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
