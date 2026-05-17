@@ -3,10 +3,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.db_models import User
 from pydantic import BaseModel
-from auth_middleware import require_admin
+from auth_middleware import require_admin, require_analyst, get_current_user
 from database import generate_id
 from models.db_models import ActivityLog
-from auth_middleware import get_current_user
 from datetime import datetime, timezone
 
 router = APIRouter()
@@ -34,7 +33,7 @@ def get_users(db: Session = Depends(get_db),_:  object  = Depends(require_admin)
     ]
 
 @router.put("/users/{user_id}")
-def update_user(user_id: str, req: UserUpdate,db: Session = Depends(get_db),_:  object  = Depends(require_admin)):
+def update_user(user_id: str, req: UserUpdate,db: Session = Depends(get_db),_:  object  = Depends(require_analyst)):
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -43,7 +42,7 @@ def update_user(user_id: str, req: UserUpdate,db: Session = Depends(get_db),_:  
         user.full_name = req.full_name
     if req.badge is not None:
         user.badge = req.badge
-    if req.assigned_zone is not None:
+    if "assigned_zone" in req.model_fields_set:
         user.assigned_zone = req.assigned_zone
     db.commit()
     return {"user_id": user_id, "status": "updated"}
