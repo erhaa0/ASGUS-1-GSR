@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import L from 'leaflet';
 import {
     Home, PlusCircle, Clock, Settings, LogOut, ChevronLeft, ChevronRight,
-    MapPin, Camera, X, Check, Upload, AlertTriangle, ChevronDown, FileText
+    MapPin, Camera, X, Check, Upload, AlertTriangle, ChevronDown, FileText,
+    Maximize2, Minimize2
 } from 'lucide-react';
 import { UserContext } from '../App';
 import Sidebar from '../components/Sidebar';
@@ -91,9 +92,9 @@ const FOReportModal = ({ onClose, onShowToast, assignedZones }) => {
                             {assignedZones.map(z => <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>)}
                         </select>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                        <div className="input-group"><label>From</label><input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="modal-input" /></div>
-                        <div className="input-group"><label>To</label><input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="modal-input" /></div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                        <div className="input-group" style={{ flex: '1 1 200px' }}><label>From</label><input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="modal-input" /></div>
+                        <div className="input-group" style={{ flex: '1 1 200px' }}><label>To</label><input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="modal-input" /></div>
                     </div>
                     <div className="input-group">
                         <label>Report Type</label>
@@ -128,7 +129,7 @@ const FieldOfficerDashboard = () => {
     const navigate  = useNavigate();
     const location  = useLocation();
     const { user }  = useContext(UserContext);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth <= 768);
 
     const mapRef         = useRef(null);
     const mapInstanceRef = useRef(null);
@@ -137,6 +138,7 @@ const FieldOfficerDashboard = () => {
     const [assignedZones, setAssignedZones] = useState([]);
     const [history, setHistory]             = useState([]);
     const [selectedZone, setSelectedZone]   = useState('');
+    const [isMapMaximized, setIsMapMaximized] = useState(false);
 
     // ── Fetch assigned zones and observations ─────────
     useEffect(() => {
@@ -182,7 +184,16 @@ const FieldOfficerDashboard = () => {
             const hash = location.hash.replace('#', '');
             const id   = hash + '-section';
             const el   = document.getElementById(id) || document.getElementById(hash);
-            if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 50);
+            if (el) {
+                setTimeout(() => {
+                    const mainEl = document.querySelector('main');
+                    if (mainEl) {
+                        mainEl.scrollTo({ top: el.offsetTop - 24, behavior: 'smooth' });
+                    } else {
+                        el.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }, 50);
+            }
         }
     }, [location.hash]);
 
@@ -202,6 +213,9 @@ const FieldOfficerDashboard = () => {
     const [showReportModal, setShowReportModal] = useState(false);
     const [expandedCard, setExpandedCard] = useState(null);
 
+
+    const [gpsLoading, setGpsLoading] = useState(false);
+    const [gpsError, setGpsError] = useState('');
     // ── Map init ──────────────────────────────────────
     useEffect(() => {
         if (mapInstanceRef.current || !mapRef.current || assignedZones.length === 0) return;
@@ -239,9 +253,6 @@ const FieldOfficerDashboard = () => {
                 .addTo(map);
         });
 
-        map.getContainer().addEventListener('mouseleave', () => map.dragging.disable());
-        map.getContainer().addEventListener('mouseenter', () => map.dragging.enable());
-
         mapInstanceRef.current = map;
 
         return () => {
@@ -253,17 +264,52 @@ const FieldOfficerDashboard = () => {
     }, [assignedZones]);
 
     const handleAutoFillGPS = () => {
-        if (!formZone) { setErrors({ ...errors, zone: true }); return; }
+        setGpsError('');
+        if (!navigator.geolocation) {
+            // Geolocation not supported — fall back to zone centre
+            fallbackToZoneCenter();
+            return;
+        }
+        setGpsLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                // Success — use real device coordinates
+                setFormLat(position.coords.latitude.toFixed(6));
+                setFormLng(position.coords.longitude.toFixed(6));
+                setGpsLoading(false);
+                setGpsError('');
+            },
+            (err) => {
+                // Permission denied or timeout — fall back to zone centre
+                setGpsLoading(false);
+                if (err.code === err.PERMISSION_DENIED) {
+                    setGpsError('GPS permission denied — using zone centre instead');
+                } else {
+                    setGpsError('GPS unavailable — using zone centre instead');
+                }
+                fallbackToZoneCenter();
+            },
+            {
+                enableHighAccuracy: true,  // use GPS chip, not IP
+                timeout:            8000,  // 8 seconds max wait
+                maximumAge:         0      // always get fresh position
+            }
+        );
+    };
+
+    const fallbackToZoneCenter = () => {
         const z = assignedZones.find(x => x.zone_name === formZone);
         if (z) {
-            setFormLat((z.lat + (Math.random() * 0.02 - 0.01)).toFixed(5));
-            setFormLng((z.lon + (Math.random() * 0.02 - 0.01)).toFixed(5));
-            setErrors({ ...errors, zone: false });
+            setFormLat(z.lat.toFixed(6));
+            setFormLng(z.lon.toFixed(6));
         }
     };
 
     const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) setFormFile(e.target.files[0]);
+        if (e.target.files && e.target.files[0]) {
+            setFormFile(e.target.files[0]);
+             
+        }
     };
 
     const handleSubmitObservation = async () => {
@@ -327,8 +373,8 @@ const FieldOfficerDashboard = () => {
     };
 
     return (
-        <div className="dashboard-container">
-            <Topbar subtitle="Field Officer Portal" />
+        <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed-global' : ''}`}>
+            <Topbar subtitle="Field Officer Portal" onMenuClick={() => setSidebarCollapsed(!sidebarCollapsed)} />
             <div className="main-wrapper">
                 <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
 
@@ -337,14 +383,6 @@ const FieldOfficerDashboard = () => {
 
                         {/* Section 1 — Assignment Card */}
                         <div className="fo-card" style={{ marginBottom: 16, position: 'relative' }}>
-                            <button
-                                onClick={() => setShowReportModal(true)}
-                                style={{ position: 'absolute', top: 24, right: 24, padding: '8px 16px', background: '#22C55E', color: '#000', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                                onMouseOver={e => e.currentTarget.style.background = '#16A34A'}
-                                onMouseOut={e => e.currentTarget.style.background = '#22C55E'}
-                            >
-                                <FileText size={16} /> Generate Report
-                            </button>
                             <div className="fo-assignment-layout" style={{ marginTop: 12 }}>
                                 <div className="fo-assignment-left">
                                     <div className="fo-muted-caps">Today's Assignment</div>
@@ -376,16 +414,32 @@ const FieldOfficerDashboard = () => {
                                     </div>
                                 </div>
                             </div>
+                            <button className="fo-generate-btn" onClick={() => setShowReportModal(true)}>
+                                <FileText size={16} /> Generate Report
+                            </button>
                         </div>
 
                         {/* Section 2 — Map + Zone List */}
                         <div className="fo-two-col-layout" style={{ marginBottom: 16 }}>
-                            <div className="fo-card fo-map-card">
+                            <div className={`fo-card fo-map-card ${isMapMaximized ? 'maximized' : ''}`}>
                                 <div className="fo-card-header">
-                                    <h3 style={{ margin: 0, fontSize: 16, color: '#FFF' }}>Assigned Zones</h3>
-                                    <div style={{ fontSize: 13, color: '#666' }}>{assignedZones.length} zones under monitoring</div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: 16, color: '#FFF' }}>Assigned Zones</h3>
+                                        <div style={{ fontSize: 13, color: '#666' }}>{assignedZones.length} zones under monitoring</div>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setIsMapMaximized(!isMapMaximized);
+                                            setTimeout(() => {
+                                                if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+                                            }, 300);
+                                        }} 
+                                        style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}
+                                    >
+                                        {isMapMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                                    </button>
                                 </div>
-                                <div style={{ height: 320, width: '100%', position: 'relative', isolation: 'isolate', zIndex: 0 }} ref={mapRef}></div>
+                                <div style={{ flex: 1, minHeight: 320, width: '100%', position: 'relative', isolation: 'isolate', zIndex: 0 }} ref={mapRef}></div>
                             </div>
 
                             <div className="fo-card fo-zones-card">
@@ -479,9 +533,9 @@ const FieldOfficerDashboard = () => {
                                         <span>GPS Coordinates</span>
                                         <button className="fo-autofill-btn" onClick={handleAutoFillGPS}><MapPin size={12} /> Auto-fill</button>
                                     </label>
-                                    <div style={{ display: 'flex', gap: 12 }}>
-                                        <input type="text" className="fo-input" placeholder="Lat" value={formLat} onChange={e => setFormLat(e.target.value)} style={{ flex: 1, fontFamily: 'Space Mono' }} />
-                                        <input type="text" className="fo-input" placeholder="Long" value={formLng} onChange={e => setFormLng(e.target.value)} style={{ flex: 1, fontFamily: 'Space Mono' }} />
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                                        <input type="text" className="fo-input" placeholder="Lat" value={formLat} onChange={e => setFormLat(e.target.value)} style={{ flex: '1 1 120px', fontFamily: 'Space Mono' }} />
+                                        <input type="text" className="fo-input" placeholder="Long" value={formLng} onChange={e => setFormLng(e.target.value)} style={{ flex: '1 1 120px', fontFamily: 'Space Mono' }} />
                                     </div>
                                 </div>
                                 <div className="fo-form-group">
@@ -631,3 +685,4 @@ const FieldOfficerDashboard = () => {
 };
 
 export default FieldOfficerDashboard;
+
