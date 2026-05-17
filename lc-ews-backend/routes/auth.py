@@ -17,7 +17,7 @@ ALGORITHM   = "HS256"
 VALID_ROLES = {"field_officer", "analyst", "admin"}
 
 # ✅ FIX: minimum password length
-MIN_PASSWORD_LENGTH = 8
+MIN_PASSWORD_LENGTH = 4
 
 ROLE_MAP = {
     "field_officer": "field-officer",
@@ -129,8 +129,6 @@ def register(
     db:  Session = Depends(get_db),
     _:   object  = Depends(require_admin)
 ):
-    # ✅ Pydantic validators above already rejected bad roles and weak passwords
-    # before we get here — no extra checks needed in the function body
 
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
