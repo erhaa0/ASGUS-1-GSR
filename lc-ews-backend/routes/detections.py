@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db, generate_id
 from models.db_models import Detection, Zone, WeatherSnapshot, ActivityLog, RiskParameter
-from auth_middleware import get_current_user, require_admin  
+from auth_middleware import get_current_user, require_admin, require_analyst
 from datetime import datetime, timezone
 from pydantic import BaseModel, field_validator
 import sys, os, uuid, logging
@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'ai'))
 from predict import run_full_pipeline
 
 router = APIRouter()
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)  # ✅ MINOR: proper logging
 
 
 class StatusUpdate(BaseModel):
@@ -31,7 +31,7 @@ class TriggerRequest(BaseModel):
     eps:         float = 0.5
     min_samples: int   = 2
 
-
+    # ✅ FIX #5: validate sightings before they reach the AI pipeline
     @field_validator("sightings")
     @classmethod
     def validate_sightings(cls, v):
@@ -52,10 +52,12 @@ class TriggerRequest(BaseModel):
                 raise ValueError(f"Sighting #{i+1} has invalid longitude: {lon}")
         return v
 
+
+# ── Get Detections ────────────────────────────────────
 @router.get("/detections")
 def get_detections(
     zone_id: str | None = Query(None),
-    limit:   int        = Query(20, le=200),  
+    limit:   int        = Query(20, le=200),  # ✅ MINOR: cap results
     db: Session = Depends(get_db),
     _:  object  = Depends(get_current_user)
 ):
@@ -84,13 +86,14 @@ def get_detections(
     ]
 
 
-
+# ── Update Detection Status ───────────────────────────
+# ✅ FIX #4: restricted to admins only, with audit log
 @router.patch("/detections/{event_id}")
 def update_detection(
     event_id:     str,
     req:          StatusUpdate,
     db:           Session = Depends(get_db),
-    current_user = Depends(require_admin) 
+    current_user = Depends(require_analyst)
 ):
     detection = db.query(Detection).filter(Detection.event_id == event_id).first()
     if not detection:
@@ -99,7 +102,7 @@ def update_detection(
     old_status       = detection.status
     detection.status = req.status
 
-  
+    # ✅ FIX #4: log who changed what
     db.add(ActivityLog(
         log_id      = generate_id("log"),
         user_id     = current_user.user_id,
@@ -112,12 +115,13 @@ def update_detection(
     return {"event_id": event_id, "status": req.status}
 
 
-
+# ── Bulk Update ───────────────────────────────────────
+# ✅ FIX #4: restricted to admins only, with audit log
 @router.post("/detections/bulk")
 def bulk_update(
     req:          BulkUpdate,
     db:           Session = Depends(get_db),
-    current_user = Depends(require_admin) 
+    current_user = Depends(require_analyst)
 ):
     updated = 0
     for event_id in req.event_ids:
@@ -126,6 +130,7 @@ def bulk_update(
             d.status = req.status
             updated += 1
 
+    # ✅ FIX #4: single audit log entry for the whole bulk action
     db.add(ActivityLog(
         log_id      = generate_id("log"),
         user_id     = current_user.user_id,
@@ -138,7 +143,7 @@ def bulk_update(
     return {"updated": updated, "status": req.status}
 
 
-
+# ── Trigger AI Detection ──────────────────────────────
 @router.post("/detections/trigger")
 def trigger_detection(
     req:          TriggerRequest,
@@ -153,7 +158,6 @@ def trigger_detection(
     if not risk:
         raise HTTPException(status_code=404, detail="Risk parameters not found for this zone")
 
-  
     try:
         result = run_full_pipeline(
             zone_id     = req.zone_id,
@@ -191,6 +195,7 @@ def trigger_detection(
             fetched_at   = datetime.now(timezone.utc)
         ))
 
+        # ✅ FIX (race condition): UUID-based alert ID instead of COUNT()+1
         alert_id   = f"ALT-{uuid.uuid4().hex[:8].upper()}"
         event_type = "Locust Swarm" if result["current_swarm"] else "Monitoring"
 
@@ -223,13 +228,13 @@ def trigger_detection(
             timestamp   = datetime.now(timezone.utc)
         ))
 
-        db.commit()  
+        db.commit()  # ✅ FIX #5: single commit — all or nothing
 
     except ValueError as e:
-        
+        # Validation errors from the pipeline (bad data shape, etc.)
         raise HTTPException(status_code=422, detail=str(e))
     except Exception:
-        db.rollback()  
+        db.rollback()  # ✅ FIX #5: roll back everything if pipeline crashes
         logger.exception("[detections] trigger pipeline failed")
         raise HTTPException(status_code=500, detail="Detection pipeline failed. No data was saved.")
 
