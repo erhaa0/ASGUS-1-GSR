@@ -249,7 +249,7 @@ const ZoneDetailPage = () => {
     const isAdmin       = role === 'admin';
     const dashboardPath = role === 'field-officer' ? '/field-officer' : role === 'admin' ? '/admin' : '/analyst';
 
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth <= 768);
     const [showReportModal, setShowReportModal]   = useState(false);
     const [showAssignModal, setShowAssignModal]   = useState(false);
     const [toast, setToast]                       = useState(null);
@@ -269,9 +269,9 @@ const ZoneDetailPage = () => {
                 const zoneId = ZONE_ID_MAP[zoneName] || zoneName || 'quetta';
 
                 const [zoneRes, detectionsRes, officersRes] = await Promise.all([
-                    fetchZone(zoneId),
-                    fetchDetections({ zone_id: zoneId, limit: 100 }),
-                    fetchFieldOfficers(),
+                    fetchZone(zoneId).catch(() => null),
+                    fetchDetections({ zone_id: zoneId, limit: 100 }).catch(() => []),
+                    fetchFieldOfficers().catch(() => []),
                 ]);
 
                 if (zoneRes) {
@@ -400,7 +400,7 @@ const ZoneDetailPage = () => {
                     </div>
 
                     {/* ── TOP ROW ── */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '60fr 40fr', gap: 20 }}>
+                    <div className="zd-top-grid">
 
                         {/* Zone Map */}
                         <div style={{ background: '#000', borderRadius: 8, border: '1px solid #1E1E1E', overflow: 'hidden', height: 380, position: 'relative' }}>
@@ -438,7 +438,7 @@ const ZoneDetailPage = () => {
                                 </div>
 
                                 {/* 2x2 Stats */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div className="zd-stats-grid">
                                     {[
                                         { label: 'CONFIDENCE SCORE', value: zoneData?.confidence ? `${Math.round(zoneData.confidence * 100)}%` : (latest?.confidence || 'N/A'), color: '#F59E0B' },
                                         { label: 'EVENT TYPE',       value: latest?.type || 'Locust Swarm', color: '#F5F5F5' },
@@ -493,7 +493,7 @@ const ZoneDetailPage = () => {
                     </div>
 
                     {/* ── BOTTOM ROW ── */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div className="zd-bottom-grid">
 
                         {/* Risk Trend Chart */}
                         <div style={{ background: '#0D0D0D', border: '1px solid #1E1E1E', borderRadius: 8, padding: 20 }}>
@@ -529,7 +529,8 @@ const ZoneDetailPage = () => {
                             <div style={{ fontSize: 10, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>
                                 Detection Event History
                             </div>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <div className="zd-table-wrapper">
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                                 <thead>
                                     <tr style={{ background: '#161616' }}>
                                         {['Time', 'Event Type', 'Confidence', 'Velocity', 'Status'].map(col => (
@@ -559,6 +560,7 @@ const ZoneDetailPage = () => {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 </main>
@@ -577,3 +579,4 @@ const ZoneDetailPage = () => {
 };
 
 export default ZoneDetailPage;
+
