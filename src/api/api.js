@@ -29,7 +29,13 @@ export const apiFetch = async (endpoint, options = {}) => {
     const data = await response.json();
 
     if (!response.ok) {
-        const msg = data?.detail || `HTTP ${response.status}`;
+        let msg;
+        if (Array.isArray(data?.detail)) {
+            // Pydantic 422 validation error — extract first human-readable message
+            msg = data.detail.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+        } else {
+            msg = data?.detail || `HTTP ${response.status}`;
+        }
         console.error(`[apiFetch] ERROR: ${msg}`, data);
         throw new Error(msg);
     }
