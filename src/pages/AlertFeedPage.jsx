@@ -61,7 +61,7 @@ const RiskPill = ({ risk }) => {
 // ─── Main Page Component ──────────────────────────────────────────────────────
 const AlertFeedPage = () => {
     const navigate = useNavigate();
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth <= 768);
     const [alerts, setAlerts] = useState([]);
     const [selectedAlerts, setSelectedAlerts] = useState([]);
     const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
@@ -188,6 +188,7 @@ const AlertFeedPage = () => {
             setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
         } catch (err) {
             console.error('Status update failed:', err);
+            showToast('Status update failed — ' + (err.message || 'try again'));
         }
     };
 
@@ -244,7 +245,7 @@ const AlertFeedPage = () => {
 
     return (
         <div className="dashboard-container">
-            <Topbar subtitle="Alert Feed" notificationOverride={unreadCount} />
+            <Topbar subtitle="Alert Feed" notificationOverride={unreadCount} onMenuClick={() => setSidebarCollapsed(!sidebarCollapsed)} />
             <div className="main-wrapper">
                 <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
 
@@ -391,7 +392,7 @@ const AlertFeedPage = () => {
                                         </div>
 
                                         {/* Row 4 */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                                 <div className="af-chip amber"><Activity size={12} /> Conf: {alert.conf}%</div>
                                                 <div className="af-chip dark">{alert.type}</div>
