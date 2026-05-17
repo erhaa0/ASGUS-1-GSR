@@ -63,14 +63,6 @@ def get_zone(
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # ✅ MAJOR FIX: field officers can only fetch their own zone
-    if (current_user.role == "field_officer"
-            and zone_id != current_user.assigned_zone):
-        raise HTTPException(
-            status_code=403,
-            detail="You are not assigned to this zone"
-        )
-
     return {
         "zone_id":            zone.zone_id,
         "zone_name":          zone.zone_name,
